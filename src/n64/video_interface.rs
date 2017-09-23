@@ -42,8 +42,8 @@ impl VideoInterface {
         match self.framebuffer.width {
             0 => None,
             _ => match self.framebuffer.format {
-                FramebufferFormat::RGBA32Bit => Some(self.framebuffer.clone()),
-                _ => None,
+                FramebufferFormat::Blank => None,
+                _ => Some(self.framebuffer.clone()),
             }
         }
     }

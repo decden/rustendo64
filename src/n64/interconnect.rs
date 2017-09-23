@@ -4,6 +4,7 @@ use super::{AudioInterface, PeripheralInterface, Pif, Rdp, Rsp, MipsInterface,
             SerialInterface, RdramInterface, VideoInterface};
 use super::mem_map::{self, Addr, RDRAM_LENGTH};
 use super::sinks::{Sink, VideoFrame};
+use super::video_interface::{FramebufferFormat};
 
 use std::fmt;
 
@@ -223,9 +224,22 @@ impl Interconnect {
             if let Some(fb) = self.vi.framebuffer_description() {
                 let size = (fb.width * fb.height) as usize;
                 let mut argb_data: Box<[u32]> = vec![0; size].into_boxed_slice();
-                for i in 0..size {
-                    argb_data[i] = self.read_word(fb.origin + i as u32 * 4) >> 8;
-                }
+
+                match fb.format {
+                    FramebufferFormat::RGBA32Bit => for i in 0..size {
+                        argb_data[i] = self.read_word(fb.origin + i as u32 * 4) >> 8;
+                    },
+                    FramebufferFormat::RGBA16Bit => for i in 0..(size / 2) {
+                        let pixel = self.read_word(fb.origin + i as u32 * 4);
+                        argb_data[i*2+0] = ((pixel >> 26) & 0b11111) << (3 + 16) |
+                                           ((pixel >> 21) & 0b11111) << (3 +  8) |
+                                           ((pixel >> 16) & 0b11111) << (3 +  0);
+                        argb_data[i*2+1] = ((pixel >> 10) & 0b11111) << (3 + 16) |
+                                           ((pixel >>  5) & 0b11111) << (3 +  8) |
+                                           ((pixel >>  0) & 0b11111) << (3 +  0);                        
+                    },
+                    _ => {},
+                };
 
                 frame_sink.append(VideoFrame {
                     argb_data: argb_data,
