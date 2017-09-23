@@ -3,6 +3,7 @@ use byteorder::{BigEndian, ByteOrder};
 use super::{AudioInterface, PeripheralInterface, Pif, Rdp, Rsp, MipsInterface,
             SerialInterface, RdramInterface, VideoInterface};
 use super::mem_map::{self, Addr, RDRAM_LENGTH};
+use super::sinks::{Sink, VideoFrame};
 
 use std::fmt;
 
@@ -23,6 +24,8 @@ pub struct Interconnect {
     si: SerialInterface,
 
     cart_rom: Box<[u8]>,
+
+    steps_to_next_frame: u32,
 }
 
 impl Interconnect {
@@ -44,6 +47,8 @@ impl Interconnect {
             si: SerialInterface::default(),
 
             cart_rom: cart_rom,
+
+            steps_to_next_frame: 100000,
         }
     }
 
@@ -202,12 +207,31 @@ impl Interconnect {
         };
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self, frame_sink: &mut Sink<VideoFrame>) {
         let pi_dma = self.pi.get_dma_chunk();
         if let Some(dma) = pi_dma {
             for i in 0..dma.length {
                 let byte = self.read_byte(dma.from_cart_addr + i);
                 self.write_byte(dma.to_dram_addr + i, byte);
+            }
+        }
+
+        // Every once in a white, do scan out the framebuffer. Note that this counter is totaly arbitrary right now...
+        self.steps_to_next_frame -= 1;
+        if self.steps_to_next_frame == 0 {
+            self.steps_to_next_frame = 100000;
+            if let Some(fb) = self.vi.framebuffer_description() {
+                let size = (fb.width * fb.height) as usize;
+                let mut argb_data: Box<[u32]> = vec![0; size].into_boxed_slice();
+                for i in 0..size {
+                    argb_data[i] = self.read_word(fb.origin + i as u32 * 4) >> 8;
+                }
+
+                frame_sink.append(VideoFrame {
+                    argb_data: argb_data,
+                    width: fb.width,
+                    height: fb.height,
+                });
             }
         }
     }

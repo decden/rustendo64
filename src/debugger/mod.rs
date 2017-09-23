@@ -8,12 +8,18 @@ use n64::cpu::opcode::Opcode::*;
 use n64::mem_map;
 use n64::mem_map::Addr::*;
 use n64::N64;
+use middleware::MostRecentFrameSink;
 use self::command::Command;
+
+use minifb::{WindowOptions, Window, Key, KeyRepeat, Scale};
 
 pub struct Debugger {
     n64: N64,
 
     last_command: Option<Command>,
+
+    window: Option<Window>,
+    window_size: (u32, u32),
 }
 
 impl Debugger {
@@ -22,6 +28,9 @@ impl Debugger {
             n64: n64,
 
             last_command: None,
+
+            window: None,
+            window_size: (0, 0),
         }
     }
 
@@ -71,7 +80,24 @@ impl Debugger {
                 println!("");
             }
 
-            self.n64.step();
+            let mut frame_sink = MostRecentFrameSink::new();
+            self.n64.step(&mut frame_sink);
+
+            if let Some(frame) = frame_sink.into_frame() {
+                if self.window_size != (frame.width, frame.height) {
+                    self.window = Some(Window::new("Rustendo64", frame.width as usize, frame.height as usize, WindowOptions {
+                        borderless: true,
+                        title: true,
+                        resize: false,
+                        scale: Scale::X2,
+                    }).unwrap());
+                    self.window_size = (frame.width, frame.height);
+                }
+
+                if let Some(window) = self.window.as_mut() {
+                    window.update_with_buffer(&frame.argb_data);
+                }
+            }
         }
     }
 

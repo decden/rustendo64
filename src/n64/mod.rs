@@ -11,6 +11,7 @@ mod mips_interface;
 mod serial_interface;
 mod rdram_interface;
 mod video_interface;
+pub mod sinks;
 
 pub use self::audio_interface::AudioInterface;
 pub use self::cpu::Cpu;

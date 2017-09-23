@@ -3,6 +3,7 @@
 extern crate byteorder;
 
 extern crate num;
+extern crate minifb;
 
 #[macro_use]
 extern crate enum_primitive;
@@ -12,6 +13,7 @@ extern crate nom;
 
 mod n64;
 mod debugger;
+mod middleware;
 
 use std::env;
 use std::fs::File;

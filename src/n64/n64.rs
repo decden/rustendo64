@@ -1,4 +1,5 @@
 use super::{Cpu, Interconnect};
+use super::sinks::{Sink, VideoFrame};
 
 #[derive(Debug)]
 pub struct N64 {
@@ -22,8 +23,8 @@ impl N64 {
         &self.interconnect
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self, frame_sink: &mut Sink<VideoFrame>) {
         self.cpu.step(&mut self.interconnect);
-        self.interconnect.step();
+        self.interconnect.step(frame_sink);
     }
 }
