@@ -6,6 +6,8 @@ use nom::{IResult, eof, space, digit};
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
     Step(usize),
+    Memdump(Option<usize>, usize),
+    CpuInfo,
     Exit,
     Repeat,
 }
@@ -26,6 +28,8 @@ named!(
     chain!(
         c: alt_complete!(
             step |
+            memdump |
+            cpuinfo |
             exit |
             repeat) ~
             eof,
@@ -39,10 +43,24 @@ named!(
         || Command::Step(count.unwrap_or(1))));
 
 named!(
+    memdump<Command>,
+    chain!(
+        alt_complete!(tag!("memdump") | tag!("m")) ~
+            address: opt!(preceded!(space, usize_parser)) ~
+            size: opt!(preceded!(space, usize_parser)),
+        || Command::Memdump(address, size.unwrap_or(256))));
+
+named!(
     exit<Command>,
     map!(
         alt_complete!(tag!("exit") | tag!("quit") | tag!("e") | tag!("q")),
         |_| Command::Exit));
+
+named!(
+    cpuinfo<Command>,
+    map!(
+        alt_complete!(tag!("cpuinfo") | tag!("i")),
+        |_| Command::CpuInfo));
 
 named!(
     repeat<Command>,

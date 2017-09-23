@@ -7,7 +7,9 @@ mod peripheral_interface;
 mod pif;
 mod rdp;
 mod rsp;
+mod mips_interface;
 mod serial_interface;
+mod rdram_interface;
 mod video_interface;
 
 pub use self::audio_interface::AudioInterface;
@@ -18,5 +20,8 @@ pub use self::peripheral_interface::PeripheralInterface;
 pub use self::pif::Pif;
 pub use self::rdp::Rdp;
 pub use self::rsp::Rsp;
+pub use self::mips_interface::MipsInterface;
 pub use self::serial_interface::SerialInterface;
+pub use self::rdram_interface::RdramInterface;
 pub use self::video_interface::VideoInterface;
+pub use self::video_interface::FramebufferDescription;

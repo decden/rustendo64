@@ -8,6 +8,7 @@ impl SerialInterface {
     }
 
     pub fn write_status_reg(&mut self, value: u32) {
-        panic!("Writes to SI status reg not yet implemented");
+        // TODO: This should clear the interrupts. The value is discarded.
+        println!("WARNING: Writing to SI_STATUS_REG");
     }
 }

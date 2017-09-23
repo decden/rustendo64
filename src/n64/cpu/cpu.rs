@@ -93,26 +93,13 @@ impl Cpu {
         match instr.opcode() {
             Special => {
                 match instr.special_op() {
-                    Sll => self.reg_instr(instr, |_, rt, sa| rt << sa),
-                    Srl => self.reg_instr(instr, |_, rt, sa| {
-                        let rt = rt as u32;
-                        (rt >> sa) as u64
-                    }),
+                    Sll => self.reg_instr(instr, SignExtendResult::Yes, |_, rt, sa| rt << sa),
+                    Srl => self.reg_instr(instr, SignExtendResult::Yes, |_, rt, sa| ((rt as u32) >> sa) as u64),
+                    Sra => self.reg_instr(instr, SignExtendResult::Yes, |_, rt, sa| ((rt as i32) >> sa) as u64),
 
-                    Sllv =>
-                        self.reg_instr(instr, |rs, rt, _| {
-                            // TODO: Check to see if this is actually sa
-                            let shift = rs & 0b11111;
-                            rt << shift
-                        }),
-
-                    Srlv =>
-                        self.reg_instr(instr, |rs, rt, _| {
-                            let rs = rs as u32;
-                            let rt = rt as u32;
-                            let shift = rs & 0b11111;
-                            (rt >> shift) as u64
-                        }),
+                    Sllv => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| ((rt as u32) << (rs & 0b11111)) as u64),
+                    Srlv => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| ((rt as u32) >> (rs & 0b11111)) as u64),
+                    Srav => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| ((rt as i32) >> (rs & 0b11111)) as u64),
 
                     Jr => {
                         let delay_slot_pc = self.reg_pc;
@@ -121,6 +108,10 @@ impl Cpu {
                         self.reg_pc = self.read_reg_gpr(instr.rs());
 
                         self.delay_slot_pc = Some(delay_slot_pc);
+                    }
+
+                    Sync => {
+                        // Basically a NOP on vr4300
                     }
 
                     Multu => {
@@ -144,32 +135,104 @@ impl Cpu {
                         self.write_reg_gpr(instr.rd() as usize, value);
                     }
 
-                    Addu => self.reg_instr(instr, |rs, rt, _| rs.wrapping_add(rt)),
-                    Subu => self.reg_instr(instr, |rs, rt, _| rs.wrapping_sub(rt)),
+                    Dsllv => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rt << (rs & 0b111111)),
+                    Dsrlv => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rt >> (rs & 0b111111)),
+                    Dsrav => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| ((rt as i64) >> (rs & 0b111111)) as u64),
 
-                    And => self.reg_instr(instr, |rs, rt, _| rs & rt),
-                    Or => self.reg_instr(instr, |rs, rt, _| rs | rt),
-                    Xor => self.reg_instr(instr, |rs, rt, _| rs ^ rt),
+                    Div => {
+                        let rs = self.read_reg_gpr(instr.rs()) as i32;
+                        let rt = self.read_reg_gpr(instr.rt()) as i32;
 
-                    Sltu => self.reg_instr(instr, |rs, rt, _| if rs < rt { 1 } else { 0 }),
+                        self.reg_lo = (rs / rt) as u64;
+                        self.reg_hi = (rs % rt) as u64;
+                    }
+                    Divu => {
+                        let rs = self.read_reg_gpr(instr.rs()) as u32;
+                        let rt = self.read_reg_gpr(instr.rt()) as u32;
+
+                        self.reg_lo = (rs / rt) as u64;
+                        self.reg_hi = (rs % rt) as u64;
+                    }
+                    Dmult => {
+                        panic!("DMULT not implemented");
+                    }
+                    Ddiv => {
+                        let rs = self.read_reg_gpr(instr.rs()) as i64;
+                        let rt = self.read_reg_gpr(instr.rt()) as i64;
+
+                        self.reg_lo = (rs / rt) as u64;
+                        self.reg_hi = (rs % rt) as u64;
+                    }
+
+                    Ddivu => {
+                        let rs = self.read_reg_gpr(instr.rs());
+                        let rt = self.read_reg_gpr(instr.rt());
+
+                        self.reg_lo = rs / rt;
+                        self.reg_hi = rs % rt;
+                    }
+
+                    Add => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| rs.wrapping_add(rt)), // Todo handle overflow exception
+                    Addu => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| rs.wrapping_add(rt)),
+                    Sub => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| rs.wrapping_sub(rt)), // Todo handle overflow exception
+                    Subu => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| rs.wrapping_sub(rt)),
+
+                    And => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs & rt),
+                    Or => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs | rt),
+                    Xor => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs ^ rt),
+                    Nor => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| !(rs | rt)),
+
+                    Slt => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| if (rs as i64) < (rt as i64) { 1 } else { 0 }),
+                    Sltu => self.reg_instr(instr, SignExtendResult::Yes, |rs, rt, _| if rs < rt { 1 } else { 0 }),
+
+                    Dadd => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs.wrapping_add(rt)), // Todo handle overflow exception
+                    Daddu => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs.wrapping_add(rt)),
+                    Dsub => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs.wrapping_sub(rt)), // Todo handle overflow exception
+                    Dsubu => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rs.wrapping_sub(rt)),
+
+                    Dsll => self.reg_instr(instr, SignExtendResult::No, |_, rt, sa| rt << sa),
+                    Dsrl => self.reg_instr(instr, SignExtendResult::No, |_, rt, sa| rt >> sa),
+                    Dsra => self.reg_instr(instr, SignExtendResult::No, |_, rt, sa| ((rt as i64) >> sa) as u64 ),
+                    Dsll32 => self.reg_instr(instr, SignExtendResult::No, |_, rt, sa| rt << (sa + 32)),
+                    Dsrl32 => self.reg_instr(instr, SignExtendResult::No, |_, rt, sa| rt >> (sa + 32)),
+                    Dsra32 => self.reg_instr(instr, SignExtendResult::No, |_, rt, sa| ((rt as i64) >> (sa + 32)) as u64 ),
                 }
             }
 
             RegImm => {
                 match instr.reg_imm_op() {
+                    Bltz => { self.branch(instr, WriteLink::No, |rs, _| (rs as i64) < 0); }
+                    Bgezl => { self.branch_likely(instr, |rs, _| (rs as i64) >= 0); }
                     Bgezal => { self.branch(instr, WriteLink::Yes, |rs, _| (rs as i64) >= 0); }
                 }
+            }
+
+            J => {
+                let delay_slot_pc = self.reg_pc;
+                let jump_to = (delay_slot_pc & 0xFFFFFFFF_F0000000) | ((instr.target() as u64) << 2);
+                self.reg_pc = jump_to;
+                self.delay_slot_pc = Some(delay_slot_pc);
+            }
+
+            Jal => {
+                let delay_slot_pc = self.reg_pc;
+                self.reg_gpr[31] = delay_slot_pc + 4;
+                let jump_to = (delay_slot_pc & 0xFFFFFFFF_F0000000) | ((instr.target() as u64) << 2);
+                self.reg_pc = jump_to;
+                self.delay_slot_pc = Some(delay_slot_pc);
             }
 
             Addi =>
                 self.imm_instr(instr, SignExtendResult::Yes, |rs, _, imm_sign_extended| {
                     // TODO: Handle overflow exception
-                    rs + imm_sign_extended
+                    rs.wrapping_add(imm_sign_extended)
                 }),
             Addiu => self.imm_instr(instr, SignExtendResult::Yes, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
+            Slti => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| if (rs as i64) < (imm_sign_extended as i64) { 1 } else { 0 } ),
 
             Andi => self.imm_instr(instr, SignExtendResult::No, |rs, imm, _| rs & imm),
             Ori => self.imm_instr(instr, SignExtendResult::No, |rs, imm, _| rs | imm),
+            Xori => self.imm_instr(instr, SignExtendResult::No, |rs, imm, _| rs ^ imm),
 
             Lui => self.imm_instr(instr, SignExtendResult::Yes, |_, imm, _| imm << 16),
 
@@ -180,9 +243,44 @@ impl Cpu {
 
             Beq => { self.branch(instr, WriteLink::No, |rs, rt| rs == rt); }
             Bne => { self.branch(instr, WriteLink::No, |rs, rt| rs != rt); }
+            Bgtz => { self.branch(instr, WriteLink::No, |rs, rt| (rs as i64) > 0); }
 
             Beql => self.branch_likely(instr, |rs, rt| rs == rt),
             Bnel => self.branch_likely(instr, |rs, rt| rs != rt),
+            Blezl => self.branch_likely(instr, |rs, rt| (rs as i64) <= 0),
+
+            Daddi => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)), // TODO: Handle overflow
+            Daddiu => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
+
+            Lb => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = (self.read_byte(interconnect, virt_addr) as i8) as u64;
+                self.write_reg_gpr(instr.rt(), mem);
+            }
+
+            Lwl => {
+                let base = instr.rs();
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let aligned_addr = virt_addr & 0xffff_ffff_ffff_fffc;
+                let mem = self.read_word(interconnect, aligned_addr) as u64;
+                let reg = self.read_reg_gpr(instr.rt());
+
+                let shift = virt_addr - aligned_addr;
+
+                let value = match shift {
+                    0 => mem,
+                    1 => (mem <<  8) | reg & 0xff,
+                    2 => (mem << 16) | reg & 0xffff,
+                    3 => (mem << 24) | reg & 0xffffff,
+                    _ => unreachable!(),
+                };
+
+                self.write_reg_gpr(instr.rt(), value as i32 as u64);
+            }
 
             Lw => {
                 let base = instr.rs();
@@ -193,6 +291,54 @@ impl Cpu {
                 self.write_reg_gpr(instr.rt(), mem);
             }
 
+            Lbu => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = self.read_byte(interconnect, virt_addr) as u64;
+                self.write_reg_gpr(instr.rt(), mem);
+            }
+
+            Lwr => {
+                let base = instr.rs();
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let aligned_addr = (virt_addr & 0xffff_ffff_ffff_fffC);
+
+                let mem = self.read_word(interconnect, aligned_addr) as u64;
+                let reg = self.read_reg_gpr(instr.rt());
+
+
+                let shift = virt_addr - aligned_addr;
+                let value = match shift {
+                    0 => (mem & 0xff00_0000) >> 24 | reg & 0xffff_ffff_ffff_ff00,
+                    1 => (mem & 0xffff_0000) >> 16 | reg & 0xffff_ffff_ffff_0000,
+                    2 => (mem & 0xffff_ff00) >>  8 | reg & 0xffff_ffff_ff00_0000,
+                    3 => (mem & 0xffff_ffff) >>  0 | reg & 0xffff_ffff_0000_0000,
+                    _ => unreachable!(),
+                };
+
+                self.write_reg_gpr(instr.rt(), value);
+            }
+
+            Lwu => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = self.read_word(interconnect, virt_addr) as u64;
+                self.write_reg_gpr(instr.rt(), mem);
+            }
+
+            Sb => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = (self.read_reg_gpr(instr.rt()) & 0xff) as u8;
+                self.write_byte(interconnect, virt_addr, mem);
+            }
             Sw => {
                 let base = instr.rs();
 
@@ -200,6 +346,35 @@ impl Cpu {
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
                 let mem = self.read_reg_gpr(instr.rt()) as u32;
                 self.write_word(interconnect, virt_addr, mem);
+            }
+
+            Cache => {
+                // We are basically doing nothing here...
+                let base = instr.rs();
+                let op = instr.rt();
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                println!("Cache {:#016X} {:#08X}", virt_addr, op);
+            }
+
+            Ld => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = (self.read_word(interconnect, virt_addr) as u64) << 32 |
+                          (self.read_word(interconnect, virt_addr + 4) as u64);
+                self.write_reg_gpr(instr.rt(), mem);
+            }
+
+            Sd => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = self.read_reg_gpr(instr.rt());
+                self.write_word(interconnect, virt_addr, (mem >> 32) as u32);
+                self.write_word(interconnect, virt_addr + 4, (mem & 0xffffffff) as u32);
             }
         }
     }
@@ -219,7 +394,7 @@ impl Cpu {
         self.write_reg_gpr(instr.rt(), value);
     }
 
-    fn reg_instr<F>(&mut self, instr: Instruction, f: F)
+    fn reg_instr<F>(&mut self, instr: Instruction, sign_extend_result: SignExtendResult, f: F)
         where F: FnOnce(u64, u64, u32) -> u64
     {
         let rs = self.read_reg_gpr(instr.rs());
@@ -227,7 +402,11 @@ impl Cpu {
         let sa = instr.sa();
         let value = f(rs, rt, sa);
         let sign_extended_value = (value as i32) as u64;
-        self.write_reg_gpr(instr.rd() as usize, sign_extended_value);
+        let value = match sign_extend_result {
+            SignExtendResult::Yes => sign_extended_value,
+            _ => value,
+        };
+        self.write_reg_gpr(instr.rd() as usize, value);
     }
 
     fn branch<F>(&mut self, instr: Instruction, write_link: WriteLink, f: F) -> bool
@@ -269,21 +448,33 @@ impl Cpu {
         interconnect.read_word(phys_addr as u32)
     }
 
+    fn read_byte(&self, interconnect: &mut Interconnect, virt_addr: u64) -> u8 {
+        let phys_addr = self.virt_addr_to_phys_addr(virt_addr);
+        interconnect.read_byte(phys_addr as u32)
+    }
+
+
     fn write_word(&mut self, interconnect: &mut Interconnect, virt_addr: u64, value: u32) {
         let phys_addr = self.virt_addr_to_phys_addr(virt_addr);
         interconnect.write_word(phys_addr as u32, value);
+    }
+
+    fn write_byte(&mut self, interconnect: &mut Interconnect, virt_addr: u64, value: u8) {
+        let phys_addr = self.virt_addr_to_phys_addr(virt_addr);
+        interconnect.write_byte(phys_addr as u32, value);
     }
 
     fn virt_addr_to_phys_addr(&self, virt_addr: u64) -> u64 {
         // See Table 5-3 in the VR4300 User's Manual
         let addr_bit_values = (virt_addr >> 29) & 0b111;
 
-        if addr_bit_values == 0b101 {
+        match addr_bit_values {
+            // kseg0
+            0b100 => virt_addr - 0xffff_ffff_8000_0000,
             // kseg1
-            virt_addr - 0xffff_ffff_a000_0000
-        } else {
+            0b101 => virt_addr - 0xffff_ffff_a000_0000,
             // TODO
-            panic!("Unrecognized virtual address: {:#x}", virt_addr);
+            _ => panic!("Unrecognized virtual address: {:#x}", virt_addr),
         }
     }
 

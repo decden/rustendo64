@@ -26,6 +26,8 @@ impl Debugger {
     }
 
     pub fn run(&mut self) {
+        // Run the emulator when pressing enter
+        self.last_command = Some(Command::Step(1000000000000));
         loop {
             print!("r64> ");
             stdout().flush().unwrap();
@@ -39,6 +41,8 @@ impl Debugger {
 
             match command {
                 Ok(Command::Step(count)) => self.step(count),
+                Ok(Command::Memdump(addr, count)) => self.memdump(addr, count),
+                Ok(Command::CpuInfo) => self.cpuinfo(),
                 Ok(Command::Exit) => break,
                 Ok(Command::Repeat) => unreachable!(),
                 Err(ref e) => println!("{}", e),
@@ -51,11 +55,7 @@ impl Debugger {
     pub fn step(&mut self, count: usize) {
         for _ in 0..count {
             let current_pc = self.n64.cpu().current_pc_phys();
-            let addr = mem_map::map_addr(current_pc as u32);
-            let instr = Instruction(match addr {
-                PifRom(offset) => self.n64.interconnect().pif().read_boot_rom(offset),
-                _ => panic!("Debugger can't inspect address: {:?}", addr),
-            });
+            let instr = Instruction(self.n64.interconnect().read_word_debug(current_pc as u32).unwrap());
 
             print!("{:018X}: ", current_pc);
 
@@ -73,6 +73,24 @@ impl Debugger {
 
             self.n64.step();
         }
+    }
+
+    pub fn memdump(&mut self, addr: Option<usize>, size: usize) {
+        let dump_addr = addr.unwrap_or(self.n64.cpu().current_pc_phys() as usize) as u32;
+        println!("Dumping memory at {:016X}", dump_addr);
+
+        for i in 0..(size as u32 / 4) {
+            let addr = dump_addr + i * 4;
+            let word = self.n64.interconnect().read_word_debug(addr);
+            match word {
+                Some(word) => print!("{:08X} ", word),
+                None => print!("???????? "),
+            };
+        }
+    }
+
+    pub fn cpuinfo(&mut self) {
+        println!("{:?}", self.n64.cpu());
     }
 }
 
