@@ -22,6 +22,7 @@ pub use self::peripheral_interface::PeripheralInterface;
 pub use self::pif::Pif;
 pub use self::rdp::Rdp;
 pub use self::rsp::Rsp;
+pub use self::rsp::RspRegs;
 pub use self::mips_interface::MipsInterface;
 pub use self::serial_interface::SerialInterface;
 pub use self::rdram_interface::RdramInterface;

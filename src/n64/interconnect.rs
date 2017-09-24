@@ -1,8 +1,9 @@
 use byteorder::{BigEndian, ByteOrder};
 
-use super::{AudioInterface, PeripheralInterface, Pif, Rdp, Rsp, MipsInterface,
+use super::{AudioInterface, PeripheralInterface, Pif, Rdp, RspRegs, MipsInterface,
             SerialInterface, RdramInterface, VideoInterface};
-use super::mem_map::{self, Addr, RDRAM_LENGTH};
+use super::mem_map::{self, Addr};
+use super::mem_map::{RDRAM_LENGTH, SP_DMEM_LENGTH, SP_IMEM_LENGTH};
 use super::dma::DMARequest;
 use super::sinks::{Sink, VideoFrame};
 use super::video_interface::{FramebufferFormat};
@@ -11,10 +12,12 @@ use std::fmt;
 
 pub struct Interconnect {
     rdram: Box<[u8]>,
+    sp_dmem: Box<[u8]>,
+    sp_imem: Box<[u8]>,
 
     pif: Pif,
 
-    rsp: Rsp,
+    rsp: RspRegs,
     rdp: Rdp,
 
     mi: MipsInterface,
@@ -34,11 +37,13 @@ impl Interconnect {
     pub fn new(boot_rom: Box<[u8]>, cart_rom: Box<[u8]>) -> Interconnect {
         Interconnect {
             rdram: vec![0; RDRAM_LENGTH as usize].into_boxed_slice(),
+            sp_dmem: vec![0; SP_DMEM_LENGTH as usize].into_boxed_slice(),
+            sp_imem: vec![0; SP_IMEM_LENGTH as usize].into_boxed_slice(),
 
             pif: Pif::new(boot_rom),
 
             rdp: Rdp,
-            rsp: Rsp::new(),
+            rsp: RspRegs::new(),
 
             mi: MipsInterface::new(),
             ai: AudioInterface::default(),
@@ -55,15 +60,15 @@ impl Interconnect {
     }
 
     pub fn pif(&self) -> &Pif { &self.pif }
-    pub fn rsp(&mut self) -> &mut Rsp { &mut self.rsp }
+    pub fn rsp(&mut self) -> &mut RspRegs { &mut self.rsp }
 
     pub fn read_word_debug(&self, addr: u32) -> Option<u32> {
         let mapped_address = mem_map::map_addr(addr);
         match mapped_address {
             Addr::RdramMemory(offset) => Some(BigEndian::read_u32(&self.rdram[offset as usize..])),
 
-            Addr::SpDmem(offset) => Some(self.rsp.read_dmem(offset)),
-            Addr::SpImem(offset) => Some(self.rsp.read_imem(offset)),
+            Addr::SpDmem(offset) => Some(BigEndian::read_u32(&self.sp_dmem[offset as usize..])),
+            Addr::SpImem(offset) => Some(BigEndian::read_u32(&self.sp_imem[offset as usize..])),
 
             Addr::PifRom(offset) => Some(self.pif.read_boot_rom(offset)),
             Addr::PifRam(offset) => Some(self.pif.read_ram(offset)), // This could modify state
@@ -80,8 +85,8 @@ impl Interconnect {
         let word = match mapped_address {
             Addr::RdramMemory(offset) => BigEndian::read_u32(&self.rdram[offset as usize..]),
             Addr::RdramModeReg => self.ri.read_rdram_mode_reg(),
-            Addr::SpDmem(offset) => self.rsp.read_dmem(offset),
-            Addr::SpImem(offset) => self.rsp.read_imem(offset),
+            Addr::SpDmem(offset) => BigEndian::read_u32(&self.sp_dmem[offset as usize..]),
+            Addr::SpImem(offset) => BigEndian::read_u32(&self.sp_imem[offset as usize..]),
 
             Addr::SpStatusReg => self.rsp.read_status_reg(),
             Addr::SpDmaBusyReg => self.rsp.read_dma_busy_reg(),
@@ -127,8 +132,8 @@ impl Interconnect {
             Addr::RdramModeReg => self.ri.write_rdram_mode_reg(value),
             Addr::RdramUnknownReg(_) => println!("WARNING: Discarding write to {:?}", mapped_address),
 
-            Addr::SpDmem(offset) => self.rsp.write_dmem(offset, value),
-            Addr::SpImem(offset) => self.rsp.write_imem(offset, value),
+            Addr::SpDmem(offset) => BigEndian::write_u32(&mut self.sp_dmem[offset as usize..], value),
+            Addr::SpImem(offset) => BigEndian::write_u32(&mut self.sp_imem[offset as usize..], value),
 
             Addr::SpMemAddrReg => self.rsp.write_mem_addr_reg(value),
             Addr::SpDramAddrReg => self.rsp.write_dram_addr_reg(value),
@@ -192,8 +197,8 @@ impl Interconnect {
         let mapped_address = mem_map::map_addr(addr);
         let byte = match mapped_address {
             Addr::RdramMemory(offset) => self.rdram[offset as usize],
-            Addr::SpDmem(offset) => self.rsp.read_byte_dmem(offset),
-            Addr::SpImem(offset) => self.rsp.read_byte_imem(offset),
+            Addr::SpDmem(offset) => self.sp_dmem[offset as usize],
+            Addr::SpImem(offset) => self.sp_imem[offset as usize],
             Addr::CartDom1(offset) => self.cart_rom[offset as usize],
 
             _ => panic!("Cannot read byte from {:?}", mapped_address),
@@ -205,7 +210,7 @@ impl Interconnect {
         let mapped_address = mem_map::map_addr(addr);
         match mapped_address {
             Addr::RdramMemory(offset) => self.rdram[offset as usize] = value,
-            Addr::SpImem(offset) => self.rsp.write_byte_imem(offset, value),
+            Addr::SpImem(offset) => self.sp_imem[offset as usize] = value,
             _ => panic!("Cannot write byte to {:?}", mapped_address),
         };
     }
