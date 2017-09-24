@@ -10,6 +10,7 @@ mod rsp;
 mod mips_interface;
 mod serial_interface;
 mod rdram_interface;
+pub mod dma;
 pub mod video_interface;
 pub mod sinks;
 

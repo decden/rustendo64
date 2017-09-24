@@ -30,6 +30,7 @@ enum_from_primitive! {
         Daddiu =  0b011001,
 
         Lb =      0b100000,
+        Lh =      0b100001,
         Lwl =     0b100010,
         Lw =      0b100011,
         Lbu =     0b100100,
@@ -37,6 +38,7 @@ enum_from_primitive! {
         Lwu =     0b100111,
 
         Sb =      0b101000,
+        Sh =      0b101001,
         Sw =      0b101011,
 
         Cache =   0b101111,

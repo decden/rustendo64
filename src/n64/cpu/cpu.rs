@@ -261,6 +261,19 @@ impl Cpu {
                 self.write_reg_gpr(instr.rt(), mem);
             }
 
+            Lh => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                if virt_addr & 0b1 != 0 { panic!("Address error exception: half-word address is not half-word aligned"); }
+
+                let mem = (self.read_byte(interconnect, virt_addr) as u16) << 8 |
+                          (self.read_byte(interconnect, virt_addr + 1) as u16);
+                let mem = mem as i16 as u64;
+                self.write_reg_gpr(instr.rt(), mem);
+            }
+
             Lwl => {
                 let base = instr.rs();
                 let sign_extended_offset = instr.offset_sign_extended();
@@ -339,6 +352,17 @@ impl Cpu {
                 let mem = (self.read_reg_gpr(instr.rt()) & 0xff) as u8;
                 self.write_byte(interconnect, virt_addr, mem);
             }
+
+            Sh => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = (self.read_reg_gpr(instr.rt()) & 0xffff) as u16;
+                self.write_byte(interconnect, virt_addr, (mem >> 8) as u8);
+                self.write_byte(interconnect, virt_addr + 1, (mem & 0xff) as u8);
+            }
+
             Sw => {
                 let base = instr.rs();
 

@@ -1,12 +1,5 @@
-use std::cmp;
 use super::Interconnect;
-
-#[derive(Debug)]
-pub struct DMAWrite {
-    pub from_cart_addr: u32,
-    pub to_dram_addr: u32,
-    pub length: u32,
-}
+use super::dma::DMARequest;
 
 #[derive(Default)]
 pub struct PeripheralInterface
@@ -14,33 +7,13 @@ pub struct PeripheralInterface
     dram_addr: u32,
     cart_addr: u32,
 
-    pending_wr_dma_op: Option<DMAWrite>,
+    dma_write: DMARequest,
 }
 
 impl PeripheralInterface {
 
-    pub fn get_dma_chunk(&mut self) -> Option<DMAWrite>
-    {
-        let mut clear_dma = false;
-        let chunk = match self.pending_wr_dma_op.as_mut() {
-            None => None,
-            Some(ref mut dma) => {
-                let chunk = DMAWrite {
-                    from_cart_addr: dma.from_cart_addr,
-                    to_dram_addr:   dma.to_dram_addr,
-                    length:         cmp::min(256, dma.length), // Completely arbitrary chunk size...
-                };
-                dma.from_cart_addr += chunk.length;
-                dma.to_dram_addr += chunk.length;
-                dma.length -= chunk.length;
-                if dma.length == 0 { clear_dma = true; }
-                Some(chunk)
-            }
-        };
-
-        if clear_dma { self.pending_wr_dma_op = None; }
-
-        chunk
+    pub fn get_dma_write_chunk(&mut self) -> DMARequest {
+        self.dma_write.get_chunk(256) // Completely arbitrary chunk size
     }
 
     pub fn write_dram_addr_reg(&mut self, value: u32) {
@@ -52,16 +25,16 @@ impl PeripheralInterface {
     }
 
     pub fn write_wr_len_reg(&mut self, value: u32) {
-        self.pending_wr_dma_op = Some(DMAWrite {
-            from_cart_addr: self.cart_addr,
-            to_dram_addr: self.dram_addr,
+        self.dma_write = DMARequest {
+            from: self.cart_addr,
+            to: self.dram_addr,
             length: (value & 0x00ff_fffe) + 2,
-        });
+        };
     }
 
     pub fn read_status_reg(&self) -> u32 {
         // TODO: Verify if this is correct
-        if let Some(_) = self.pending_wr_dma_op { 1 } else { 0 }
+        if self.dma_write.is_pending() { 1 } else { 0 }
     }
 
     pub fn write_status_reg(&mut self, value: u32) {

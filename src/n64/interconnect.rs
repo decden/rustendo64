@@ -3,6 +3,7 @@ use byteorder::{BigEndian, ByteOrder};
 use super::{AudioInterface, PeripheralInterface, Pif, Rdp, Rsp, MipsInterface,
             SerialInterface, RdramInterface, VideoInterface};
 use super::mem_map::{self, Addr, RDRAM_LENGTH};
+use super::dma::DMARequest;
 use super::sinks::{Sink, VideoFrame};
 use super::video_interface::{FramebufferFormat};
 
@@ -53,11 +54,8 @@ impl Interconnect {
         }
     }
 
-    pub fn pif(&self) -> &Pif {
-        &self.pif
-    }
-
-    pub fn vi(&self) -> &VideoInterface { &self.vi }
+    pub fn pif(&self) -> &Pif { &self.pif }
+    pub fn rsp(&mut self) -> &mut Rsp { &mut self.rsp }
 
     pub fn read_word_debug(&self, addr: u32) -> Option<u32> {
         let mapped_address = mem_map::map_addr(addr);
@@ -132,6 +130,9 @@ impl Interconnect {
             Addr::SpDmem(offset) => self.rsp.write_dmem(offset, value),
             Addr::SpImem(offset) => self.rsp.write_imem(offset, value),
 
+            Addr::SpMemAddrReg => self.rsp.write_mem_addr_reg(value),
+            Addr::SpDramAddrReg => self.rsp.write_dram_addr_reg(value),
+            Addr::SpRdLenReg => self.rsp.write_rd_len_reg(value),
             Addr::SpStatusReg => self.rsp.write_status_reg(value),
             Addr::SpDmaBusyReg => self.rsp.write_dma_busy_reg(value),
             Addr::SpSemaphoreReg => self.rsp.write_semaphore_reg(value),
@@ -191,6 +192,7 @@ impl Interconnect {
         let mapped_address = mem_map::map_addr(addr);
         let byte = match mapped_address {
             Addr::RdramMemory(offset) => self.rdram[offset as usize],
+            Addr::SpDmem(offset) => self.rsp.read_byte_dmem(offset),
             Addr::SpImem(offset) => self.rsp.read_byte_imem(offset),
             Addr::CartDom1(offset) => self.cart_rom[offset as usize],
 
@@ -208,14 +210,25 @@ impl Interconnect {
         };
     }
 
-    pub fn step(&mut self, frame_sink: &mut Sink<VideoFrame>) {
-        let pi_dma = self.pi.get_dma_chunk();
-        if let Some(dma) = pi_dma {
-            for i in 0..dma.length {
-                let byte = self.read_byte(dma.from_cart_addr + i);
-                self.write_byte(dma.to_dram_addr + i, byte);
-            }
+    fn do_dma(&mut self, dma: DMARequest)
+    {
+        if (dma.length != 0) {
+            println!("DMA {:08X} {:08X} {}", dma.from, dma.to, dma.length);
         }
+
+        for i in 0..dma.length {
+            let byte = self.read_byte(dma.from + i);
+            self.write_byte(dma.to + i, byte);
+        }
+    }
+
+    pub fn step(&mut self, frame_sink: &mut Sink<VideoFrame>) {
+        // Execute DMA
+        let dma = self.pi.get_dma_write_chunk();
+        self.do_dma(dma);
+        let dma = self.rsp.get_dma_read_chunk();
+        self.do_dma(dma);
+
 
         // Every once in a white, do scan out the framebuffer. Note that this counter is totaly arbitrary right now...
         self.steps_to_next_frame -= 1;
@@ -236,7 +249,7 @@ impl Interconnect {
                                            ((pixel >> 16) & 0b11111) << (3 +  0);
                         argb_data[i*2+1] = ((pixel >> 10) & 0b11111) << (3 + 16) |
                                            ((pixel >>  5) & 0b11111) << (3 +  8) |
-                                           ((pixel >>  0) & 0b11111) << (3 +  0);                        
+                                           ((pixel >>  0) & 0b11111) << (3 +  0);
                     },
                     _ => {},
                 };

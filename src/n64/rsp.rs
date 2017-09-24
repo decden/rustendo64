@@ -1,6 +1,7 @@
 use byteorder::{BigEndian, ByteOrder};
 
-use super::mem_map::{SP_DMEM_LENGTH, SP_IMEM_LENGTH};
+use super::mem_map::{SP_DMEM_START, SP_DMEM_LENGTH, SP_IMEM_LENGTH};
+use super::dma::DMARequest;
 
 #[derive(Debug)]
 pub struct RspStatusReg {
@@ -28,6 +29,10 @@ pub struct Rsp {
     pc: u32,
 
     status: RspStatusReg,
+
+    dram_addr: u32,
+    mem_addr: u32,
+    dma_read: DMARequest,
 }
 
 impl Rsp {
@@ -56,6 +61,35 @@ impl Rsp {
                 signal6: false,
                 signal7: false,
             },
+
+            dram_addr: 0,
+            mem_addr: SP_DMEM_START,
+            dma_read: DMARequest::default(),
+        }
+    }
+
+    pub fn get_dma_read_chunk(&mut self) -> DMARequest {
+        self.dma_read.get_chunk(256) // Completely arbitrary chunk size...
+    }
+
+    pub fn write_mem_addr_reg(&mut self, value: u32) {
+        self.mem_addr = value & 0x1fff + SP_DMEM_START;
+    }
+
+    pub fn write_dram_addr_reg(&mut self, value: u32) {
+        self.dram_addr = value & 0x00ff_ffff;
+    }
+
+    pub fn write_rd_len_reg(&mut self, value: u32) {
+        let count = (value >> 12) & 0xff;
+        let skip = (value >> 20);
+
+        if count != 0 { panic!("Multi-part DMAs not yet supported by RSP {} {}", count, skip); }
+
+        self.dma_read = DMARequest {
+            from: self.dram_addr,
+            to: self.mem_addr,
+            length: value & 0x0fff,
         }
     }
 
@@ -75,6 +109,10 @@ impl Rsp {
         BigEndian::write_u32(&mut self.imem[offset as usize..], value);
     }
 
+    pub fn read_byte_dmem(&self, offset: u32) -> u8 {
+        self.dmem[offset as usize]
+    }
+
     pub fn read_byte_imem(&self, offset: u32) -> u8 {
         self.imem[offset as usize]
     }
@@ -87,6 +125,7 @@ impl Rsp {
     pub fn read_status_reg(&self) -> u32 {
         (if self.status.halt               { 1 } else { 0 } <<  0) |
         (if self.status.interrupt_enable   { 1 } else { 0 } <<  1) |
+        (if self.dma_read.is_pending()     { 1 } else { 0 } <<  2) |
         // The following are still missing: [2] dma busy [3] dma full [4] io full [5] single step
         (if self.status.interrupt_on_break { 1 } else { 0 } <<  6) |
         (if self.status.signal0            { 1 } else { 0 } <<  7) |
@@ -136,7 +175,7 @@ impl Rsp {
     }
 
     pub fn read_dma_busy_reg(&self) -> u32 {
-        // TODO: Proper impl
+        println!("WARNING: Reading SP_DMA_BUSY_REG: {:#08X}", self.pc);
         0
     }
 
@@ -155,6 +194,6 @@ impl Rsp {
 
     pub fn write_pc_reg(&mut self, value: u32) {
         self.pc = value;
-        println!("WARNING: Writing SP_PC_REG: {:#08X}", value);
+        println!("WARNING: Writing to SP_PC_REG: {:#08X}", value);
     }
 }

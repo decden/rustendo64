@@ -8,6 +8,7 @@ use n64::cpu::opcode::Opcode::*;
 use n64::mem_map;
 use n64::mem_map::Addr::*;
 use n64::N64;
+use n64::sinks::{VideoFrame};
 use middleware::MostRecentFrameSink;
 use self::command::Command;
 
@@ -36,7 +37,7 @@ impl Debugger {
 
     pub fn run(&mut self) {
         // Run the emulator when pressing enter
-        self.last_command = Some(Command::Step(1000000000000));
+        self.last_command = Some(Command::Run);
         loop {
             print!("r64> ");
             stdout().flush().unwrap();
@@ -50,6 +51,7 @@ impl Debugger {
 
             match command {
                 Ok(Command::Step(count)) => self.step(count),
+                Ok(Command::Run) => self.execute_run(),
                 Ok(Command::Memdump(addr, count)) => self.memdump(addr, count),
                 Ok(Command::CpuInfo) => self.cpuinfo(),
                 Ok(Command::Exit) => break,
@@ -82,21 +84,35 @@ impl Debugger {
 
             let mut frame_sink = MostRecentFrameSink::new();
             self.n64.step(&mut frame_sink);
+            self.display_frame(frame_sink);
+        }
+    }
 
-            if let Some(frame) = frame_sink.into_frame() {
-                if self.window_size != (frame.width, frame.height) {
-                    self.window = Some(Window::new("Rustendo64", frame.width as usize, frame.height as usize, WindowOptions {
-                        borderless: true,
-                        title: true,
-                        resize: false,
-                        scale: Scale::X2,
-                    }).unwrap());
-                    self.window_size = (frame.width, frame.height);
-                }
+    pub fn execute_run(&mut self) {
+        loop {
+            let current_pc = self.n64.cpu().current_pc_phys();
+            let instr = Instruction(self.n64.interconnect().read_word_debug(current_pc as u32).unwrap());
 
-                if let Some(window) = self.window.as_mut() {
-                    window.update_with_buffer(&frame.argb_data);
-                }
+            let mut frame_sink = MostRecentFrameSink::new();
+            self.n64.step(&mut frame_sink);
+            self.display_frame(frame_sink);
+        }
+    }
+
+    pub fn display_frame(&mut self, frame_sink: MostRecentFrameSink<VideoFrame>) {
+        if let Some(frame) = frame_sink.into_frame() {
+            if self.window_size != (frame.width, frame.height) {
+                self.window = Some(Window::new("Rustendo64", frame.width as usize, frame.height as usize, WindowOptions {
+                    borderless: true,
+                    title: true,
+                    resize: false,
+                    scale: Scale::X2,
+                }).unwrap());
+                self.window_size = (frame.width, frame.height);
+            }
+
+            if let Some(window) = self.window.as_mut() {
+                window.update_with_buffer(&frame.argb_data);
             }
         }
     }

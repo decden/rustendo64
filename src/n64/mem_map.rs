@@ -3,7 +3,7 @@ pub const RDRAM_LENGTH: u32 =       0x0040_0000;
 const RDRAM_END: u32 =              RDRAM_START + RDRAM_LENGTH - 1;
 const RDRAM_MODE_REG: u32 =         0x03f0_000c;
 
-const SP_DMEM_START: u32 =          0x0400_0000;
+pub const SP_DMEM_START: u32 =      0x0400_0000;
 pub const SP_DMEM_LENGTH: u32 =     0x0000_1000;
 const SP_DMEM_END: u32 =            SP_DMEM_START + SP_DMEM_LENGTH - 1;
 
@@ -11,7 +11,10 @@ const SP_IMEM_START: u32 =          0x0400_1000;
 pub const SP_IMEM_LENGTH: u32 =     0x0000_1000;
 const SP_IMEM_END: u32 =            SP_IMEM_START + SP_IMEM_LENGTH - 1;
 
-const SP_BASE_REG: u32 =            0x0404_0000;
+const SP_MEM_ADDR_REG: u32 =        0x0404_0000;
+const SP_DRAM_ADDR_REG: u32 =       0x0404_0004;
+const SP_RD_LEN_REG: u32 =          0x0404_0008;
+const SP_WR_LEN_REG: u32 =          0x0404_000C;
 const SP_STATUS_REG: u32 =          0x0404_0010;
 const SP_DMA_BUSY_REG: u32 =        0x0404_0018;
 const SP_SEMAPHORE_REG: u32 =       0x0404_001C;
@@ -85,6 +88,10 @@ pub enum Addr {
     SpDmem(u32),
     SpImem(u32),
 
+    SpMemAddrReg,
+    SpDramAddrReg,
+    SpRdLenReg,
+    SpWrLenReg,
     SpStatusReg,
     SpDmaBusyReg,
     SpSemaphoreReg,
@@ -156,6 +163,10 @@ pub fn map_addr(addr: u32) -> Addr {
         SP_IMEM_START ... SP_IMEM_END =>
             Addr::SpImem(addr - SP_IMEM_START),
 
+        SP_MEM_ADDR_REG => Addr::SpMemAddrReg,
+        SP_DRAM_ADDR_REG => Addr::SpDramAddrReg,
+        SP_RD_LEN_REG => Addr::SpRdLenReg,
+        SP_WR_LEN_REG => Addr::SpWrLenReg,
         SP_STATUS_REG => Addr::SpStatusReg,
         SP_DMA_BUSY_REG => Addr::SpDmaBusyReg,
         SP_SEMAPHORE_REG => Addr::SpSemaphoreReg,
