@@ -7,7 +7,7 @@ pub const SP_DMEM_START: u32 =      0x0400_0000;
 pub const SP_DMEM_LENGTH: u32 =     0x0000_1000;
 const SP_DMEM_END: u32 =            SP_DMEM_START + SP_DMEM_LENGTH - 1;
 
-const SP_IMEM_START: u32 =          0x0400_1000;
+pub const SP_IMEM_START: u32 =      0x0400_1000;
 pub const SP_IMEM_LENGTH: u32 =     0x0000_1000;
 const SP_IMEM_END: u32 =            SP_IMEM_START + SP_IMEM_LENGTH - 1;
 

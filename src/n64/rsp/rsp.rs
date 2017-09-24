@@ -1,8 +1,11 @@
 use byteorder::{BigEndian, ByteOrder};
 
-use super::mem_map::{SP_DMEM_START};
-use super::dma::DMARequest;
-use super::Interconnect;
+use n64::mem_map::{SP_DMEM_START, SP_IMEM_START};
+use n64::dma::DMARequest;
+use n64::Interconnect;
+
+use super::Instruction;
+use super::RspOpcode;
 
 #[derive(Debug)]
 pub struct RspStatusReg {
@@ -35,6 +38,9 @@ pub struct RspRegs {
 
 #[derive(Debug)]
 pub struct Rsp {
+    reg_gpr: [u32; 32],
+
+    delay_slot_pc: Option<u32>,
 }
 
 impl RspRegs {
@@ -172,6 +178,8 @@ impl RspRegs {
 impl Rsp {
     pub fn new() -> Rsp {
         Rsp {
+            reg_gpr: [0; 32],
+            delay_slot_pc: None,
         }
     }
 
@@ -179,6 +187,46 @@ impl Rsp {
         if interconnect.rsp().status.halt {
             return;
         }
-        panic!("AHHHHH RSP is running...");
+
+        if let Some(pc) = self.delay_slot_pc {
+            let instr = self.read_instruction(interconnect, pc);
+            self.delay_slot_pc = None;
+
+            self.execute_instruction(interconnect, instr);
+        } else {
+            let reg_pc = interconnect.rsp().pc;
+            let instr = self.read_instruction(interconnect, reg_pc);
+
+            interconnect.rsp().pc = (reg_pc + 4) & 0xfff;
+            self.execute_instruction(interconnect, instr);
+        }
+    }
+
+    pub fn execute_instruction(&mut self, interconnect: &mut Interconnect, instr: Instruction) {
+        match instr.opcode() {
+            RspOpcode::J => {
+                let delay_slot_pc = interconnect.rsp().pc;
+                let jump_to = (instr.target() << 2) & 0x0fff;
+                interconnect.rsp().pc = jump_to;
+                self.delay_slot_pc = Some(delay_slot_pc);
+            }
+            RspOpcode::Ori => { self.reg_gpr[instr.rt()] = self.reg_gpr[instr.rs()] | instr.imm(); }
+            RspOpcode::Sh => {
+                let base = instr.rs();
+                let sign_extended_offset = instr.offset_sign_extended();
+                let dmem_addr = self.reg_gpr[base].wrapping_add(sign_extended_offset) & 0x0fff;
+                let reg = self.reg_gpr[instr.rt()] as u16;
+                interconnect.write_byte(SP_DMEM_START + dmem_addr, (reg >> 8) as u8);
+                interconnect.write_byte(SP_DMEM_START + dmem_addr + 1, (reg & 0xff) as u8);
+            }
+            RspOpcode::Unknown => {
+                // TODO: This should panic!
+            }
+        };
+    }
+
+    pub fn read_instruction(&self, interconnect: &mut Interconnect, pc: u32) -> Instruction {
+        let word = interconnect.read_word(pc + SP_IMEM_START);
+        Instruction(word)
     }
 }

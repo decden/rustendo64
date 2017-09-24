@@ -210,6 +210,7 @@ impl Interconnect {
         let mapped_address = mem_map::map_addr(addr);
         match mapped_address {
             Addr::RdramMemory(offset) => self.rdram[offset as usize] = value,
+            Addr::SpDmem(offset) => self.sp_dmem[offset as usize] = value,
             Addr::SpImem(offset) => self.sp_imem[offset as usize] = value,
             _ => panic!("Cannot write byte to {:?}", mapped_address),
         };
