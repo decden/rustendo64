@@ -211,11 +211,23 @@ impl Rsp {
             Special => {
                 match instr.special_op() {
                     Sll => self.reg_instr(instr, |_, rt, sa| rt << sa),
-                    Add => self.reg_instr(instr, |rs, rt, _| rs.wrapping_add(rt)), // Todo handle overflow exception (or is there none?)
+                    Srl => self.reg_instr(instr, |_, rt, sa| rt >> sa),
+                    Sra => self.reg_instr(instr, |_, rt, sa| ((rt as i32) >> sa) as u32),
+                    Sllv => self.reg_instr(instr, |rs, rt, _| rt << (rs & 0b11111)),
+                    Srlv => self.reg_instr(instr, |rs, rt, _| rt >> (rs & 0b11111)),
+                    Srav => self.reg_instr(instr, |rs, rt, _| ((rt as i32) >> (rs & 0b11111)) as u32),
                     Break => {
                         interconnect.rsp().status.broke = true;
                         interconnect.rsp().pc = 0;
                     }
+                    Add => self.reg_instr(instr, |rs, rt, _| rs.wrapping_add(rt)), // Todo handle overflow exception (or is there none?)
+                    Addu => self.reg_instr(instr, |rs, rt, _| rs.wrapping_add(rt)),
+                    Sub => self.reg_instr(instr, |rs, rt, _| rs.wrapping_sub(rt)), // Todo handle overflow exception (or is there none?)
+                    Subu => self.reg_instr(instr, |rs, rt, _| rs.wrapping_sub(rt)),
+                    And => self.reg_instr(instr, |rs, rt, _| rs & rt),
+                    Or => self.reg_instr(instr, |rs, rt, _| rs | rt),
+                    Xor => self.reg_instr(instr, |rs, rt, _| rs ^ rt),
+                    Nor => self.reg_instr(instr, |rs, rt, _| !(rs | rt)),
                 };
             }
             J => {
@@ -225,7 +237,10 @@ impl Rsp {
                 self.delay_slot_pc = Some(delay_slot_pc);
             }
             Addi => self.imm_instr(instr, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
+            Addiu => self.imm_instr(instr, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
+            Andi => self.imm_instr(instr, |rs, imm, _| rs & imm),
             Ori => self.imm_instr(instr, |rs, imm, _| rs | imm),
+            Xori => self.imm_instr(instr, |rs, imm, _| rs ^ imm),
             Lui => self.imm_instr(instr, |_, imm, _| imm << 16),
             Lw => {
                 let base = self.read_reg_gpr(instr.rs());
