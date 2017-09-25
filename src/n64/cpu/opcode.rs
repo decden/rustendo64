@@ -114,10 +114,3 @@ enum_from_primitive! {
         Bgezal = 0b10001,
     }
 }
-
-enum_from_primitive! {
-    #[derive(Debug)]
-    pub enum RspOpcode {
-        Ori    = 0b001101,
-    }
-}

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::opcode::{RspOpcode};
+use super::opcode::{RspOpcode, RspSpecialOpcode};
 
 use num::FromPrimitive;
 
@@ -12,8 +12,7 @@ impl Instruction {
     pub fn opcode(&self) -> RspOpcode {
         let value = (self.0 >> 26) & 0b111111;
         RspOpcode::from_u32(value).unwrap_or_else(|| {
-            // panic!("Unrecognized RSP instruction: {:#010x} (op: {:#08b})", self.0, value)
-            RspOpcode::Unknown
+            panic!("Unrecognized RSP instruction: {:#010x} (op: {:#08b})", self.0, value)
         })
     }
 
@@ -42,11 +41,6 @@ impl Instruction {
         self.0 & 0xffff
     }
 
-    // #[inline(always)]
-    // pub fn imm_sign_extended(&self) -> u64 {
-    //     (self.imm() as i16) as u64
-    // }
-
     #[inline(always)]
     pub fn target(&self) -> u32 {
         self.0 & 0x3FFFFFF
@@ -60,6 +54,14 @@ impl Instruction {
     #[inline(always)]
     pub fn offset_sign_extended(&self) -> u32 {
         (self.offset() as i16) as u32
+    }
+
+    #[inline(always)]
+    pub fn special_op(&self) -> RspSpecialOpcode {
+        let value = self.0 & 0b111111;
+        RspSpecialOpcode::from_u32(value).unwrap_or_else(|| {
+            panic!("Unrecognized RSP special opcode: {:#010x} (op: {:#08b})", self.0, value)
+        })
     }
 }
 

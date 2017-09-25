@@ -5,7 +5,8 @@ use n64::dma::DMARequest;
 use n64::Interconnect;
 
 use super::Instruction;
-use super::RspOpcode;
+use super::RspOpcode::*;
+use super::RspSpecialOpcode::*;
 
 #[derive(Debug)]
 pub struct RspStatusReg {
@@ -94,7 +95,7 @@ impl RspRegs {
         self.dma_read = DMARequest {
             from: self.dram_addr,
             to: self.mem_addr,
-            length: value & 0x0fff,
+            length: (value & 0x0ffc) + 4,
         }
     }
 
@@ -184,7 +185,8 @@ impl Rsp {
     }
 
     pub fn step(&mut self, interconnect: &mut Interconnect) {
-        if interconnect.rsp().status.halt {
+        // TODO: Find out how halt and break work together
+        if interconnect.rsp().status.halt || interconnect.rsp().status.broke {
             return;
         }
 
@@ -197,30 +199,55 @@ impl Rsp {
             let reg_pc = interconnect.rsp().pc;
             let instr = self.read_instruction(interconnect, reg_pc);
 
-            interconnect.rsp().pc = (reg_pc + 4) & 0xfff;
+            let new_pc = reg_pc + 4;
+            interconnect.rsp().pc = new_pc & 0x0fff;
             self.execute_instruction(interconnect, instr);
         }
+
     }
 
     pub fn execute_instruction(&mut self, interconnect: &mut Interconnect, instr: Instruction) {
         match instr.opcode() {
-            RspOpcode::J => {
+            Special => {
+                match instr.special_op() {
+                    Sll => self.reg_instr(instr, |_, rt, sa| rt << sa),
+                    Add => self.reg_instr(instr, |rs, rt, _| rs.wrapping_add(rt)), // Todo handle overflow exception (or is there none?)
+                    Break => {
+                        interconnect.rsp().status.broke = true;
+                        interconnect.rsp().pc = 0;
+                    }
+                };
+            }
+            J => {
                 let delay_slot_pc = interconnect.rsp().pc;
                 let jump_to = (instr.target() << 2) & 0x0fff;
                 interconnect.rsp().pc = jump_to;
                 self.delay_slot_pc = Some(delay_slot_pc);
             }
-            RspOpcode::Ori => { self.reg_gpr[instr.rt()] = self.reg_gpr[instr.rs()] | instr.imm(); }
-            RspOpcode::Sh => {
-                let base = instr.rs();
+            Addi => self.imm_instr(instr, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
+            Ori => self.imm_instr(instr, |rs, imm, _| rs | imm),
+            Lui => self.imm_instr(instr, |_, imm, _| imm << 16),
+            Lw => {
+                let base = self.read_reg_gpr(instr.rs());
                 let sign_extended_offset = instr.offset_sign_extended();
-                let dmem_addr = self.reg_gpr[base].wrapping_add(sign_extended_offset) & 0x0fff;
-                let reg = self.reg_gpr[instr.rt()] as u16;
+                let dmem_addr = base.wrapping_add(sign_extended_offset) & 0x0fff;
+                let mem = interconnect.read_word(SP_DMEM_START + dmem_addr);
+                self.reg_gpr[instr.rt()] = mem;
+            }
+            Sh => {
+                let base = self.read_reg_gpr(instr.rs());
+                let sign_extended_offset = instr.offset_sign_extended();
+                let dmem_addr = base.wrapping_add(sign_extended_offset) & 0x0fff;
+                let reg = self.read_reg_gpr(instr.rt()) as u16;
                 interconnect.write_byte(SP_DMEM_START + dmem_addr, (reg >> 8) as u8);
                 interconnect.write_byte(SP_DMEM_START + dmem_addr + 1, (reg & 0xff) as u8);
             }
-            RspOpcode::Unknown => {
-                // TODO: This should panic!
+            Sw => {
+                let base = self.read_reg_gpr(instr.rs());
+                let sign_extended_offset = instr.offset_sign_extended();
+                let dmem_addr = base.wrapping_add(sign_extended_offset) & 0x0fff;
+                let reg = self.read_reg_gpr(instr.rt());
+                interconnect.write_word(SP_DMEM_START + dmem_addr, reg);
             }
         };
     }
@@ -228,5 +255,39 @@ impl Rsp {
     pub fn read_instruction(&self, interconnect: &mut Interconnect, pc: u32) -> Instruction {
         let word = interconnect.read_word(pc + SP_IMEM_START);
         Instruction(word)
+    }
+
+    fn imm_instr<F>(&mut self, instr: Instruction, f: F)
+        where F: FnOnce(u32, u32, u32) -> u32
+    {
+        let rs = self.read_reg_gpr(instr.rs());
+        let imm = instr.imm();
+        let imm_sign_extended = imm as i16 as u32;
+        let value = f(rs, imm, imm_sign_extended);
+        self.write_reg_gpr(instr.rt(), value);
+    }
+
+
+    fn reg_instr<F>(&mut self, instr: Instruction, f: F)
+        where F: FnOnce(u32, u32, u32) -> u32
+    {
+        let rs = self.read_reg_gpr(instr.rs());
+        let rt = self.read_reg_gpr(instr.rt());
+        let sa = instr.sa();
+        let value = f(rs, rt, sa);
+        self.write_reg_gpr(instr.rd() as usize, value);
+    }
+
+    fn write_reg_gpr(&mut self, index: usize, value: u32) {
+        if index != 0 {
+            self.reg_gpr[index] = value;
+        }
+    }
+
+    fn read_reg_gpr(&self, index: usize) -> u32 {
+        match index {
+            0 => 0,
+            _ => self.reg_gpr[index],
+        }
     }
 }
