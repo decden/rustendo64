@@ -8,16 +8,48 @@ pub struct Pif {
     ram: Box<[u8]>,
 }
 
+fn crc32(rom: &[u8]) -> u32 {
+    let mut table: [u32; 256] = [0; 256];
+
+    for n in 0..256 {
+        let mut c: u32 = n;
+        for k in 0..8 {
+            c = if (c & 1 != 0) { 0xEDB88320 ^ (c >> 1) } else { c >> 1 };
+        } 
+
+        table[n as usize] = c;
+    }
+
+    let mut c: u32 = 0xffffffff;
+    for n in 0..rom.len() {
+        c = table[((c ^ rom[n] as u32) & 0xFF) as usize] ^ (c >> 8);
+    }
+
+    !c
+}
+
 impl Pif {
     pub fn new(boot_rom: Box<[u8]>) -> Pif {
-        let mut pif = Pif {
+        Pif {
             boot_rom: boot_rom,
 
             ram: vec![0; PIF_RAM_LENGTH as usize].into_boxed_slice(),
+        }
+    }
+
+
+    pub fn init_cic_seed(&mut self, rom: &[u8]) {
+        let crc = crc32(&rom[0x40..0x1000]);
+        let seed = match crc {
+            0x90BB_6CB5 => 0x0000_3F3F, // 6102
+            0x98BC_2C86 => 0x0000_913F, // 6105
+            _ => panic!("WARNING: Unknown CRC {:08X}", crc),
         };
-        pif.ram[0x26] = 0x3F;
-        pif.ram[0x27] = 0x3F;
-        pif
+
+        self.ram[0x24] = ((seed >> 24) & 0xff) as u8;
+        self.ram[0x25] = ((seed >> 16) & 0xff) as u8;
+        self.ram[0x26] = ((seed >>  8) & 0xff) as u8;
+        self.ram[0x27] = ((seed >>  0) & 0xff) as u8;
     }
 
     pub fn read_boot_rom(&self, addr: u32) -> u32 {

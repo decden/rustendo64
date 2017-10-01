@@ -17,6 +17,7 @@ enum_from_primitive! {
 
         Lui =     0b001111,
         Mtc0 =    0b010000,
+        Cop1 =    0b010001,
 
         Beq =     0b000100,
         Bne =     0b000101,
@@ -112,5 +113,12 @@ enum_from_primitive! {
         Bltz =   0b00000,
         Bgezl =  0b00011,
         Bgezal = 0b10001,
+    }
+}
+
+enum_from_primitive! {
+    #[derive(Debug)]
+    pub enum Cop1Opcode {
+        Add =    0b000000,
     }
 }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::opcode::{Opcode, RegImmOpcode, SpecialOpcode};
+use super::opcode::{Opcode, RegImmOpcode, SpecialOpcode, Cop1Opcode};
 
 use num::FromPrimitive;
 
@@ -74,6 +74,14 @@ impl Instruction {
         let value = (self.0 >> 16) & 0b11111;
         RegImmOpcode::from_u32(value).unwrap_or_else(|| {
             panic!("Unrecognized reg imm opcode: {:#010x} (op: {:#07b})", self.0, value)
+        })
+    }
+
+    #[inline(always)]
+    pub fn cop1_op(&self) -> Cop1Opcode {
+        let value = self.0 & 0b111111;
+        Cop1Opcode::from_u32(value).unwrap_or_else(|| {
+            panic!("Unrecognized COP1 opcode: {:#010x} (op: {:#08b})", self.0, value)
         })
     }
 }

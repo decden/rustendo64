@@ -2,6 +2,7 @@ use super::{cp0, Instruction};
 use super::opcode::Opcode::*;
 use super::opcode::RegImmOpcode::*;
 use super::opcode::SpecialOpcode::*;
+use super::opcode::Cop1Opcode;
 use super::super::Interconnect;
 
 use std::fmt;
@@ -207,6 +208,12 @@ impl Cpu {
                 }
             }
 
+            Cop1 => {
+                match instr.cop1_op() {
+                    Cop1Opcode::Add => { println!("Float addition") },
+                }
+            }
+
             J => {
                 let delay_slot_pc = self.reg_pc;
                 let jump_to = (delay_slot_pc & 0xFFFFFFFF_F0000000) | ((instr.target() as u64) << 2);
@@ -378,7 +385,7 @@ impl Cpu {
                 let op = instr.rt();
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                println!("Cache {:#016X} {:#08X}", virt_addr, op);
+                // println!("Cache {:#016X} {:#08X}", virt_addr, op);
             }
 
             Ld => {

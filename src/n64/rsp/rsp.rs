@@ -1,12 +1,18 @@
 use byteorder::{BigEndian, ByteOrder};
 
 use n64::mem_map::{SP_DMEM_START, SP_IMEM_START};
+use n64::mem_map::{SP_DMEM_LENGTH, SP_IMEM_LENGTH};
 use n64::dma::DMARequest;
 use n64::Interconnect;
 
 use super::Instruction;
 use super::RspOpcode::*;
 use super::RspSpecialOpcode::*;
+
+#[derive(Debug)]
+pub enum RspHleOperation {
+    Cicx105Ucode,
+}
 
 #[derive(Debug)]
 pub struct RspStatusReg {
@@ -35,6 +41,13 @@ pub struct RspRegs {
     dram_addr: u32,
     mem_addr: u32,
     dma_read: DMARequest,
+
+    // Memory
+    dmem: Box<[u8]>,
+    imem: Box<[u8]>,
+
+    // Pending HLE operation
+    pub hle_operation: Option<RspHleOperation>,
 }
 
 #[derive(Debug)]
@@ -71,11 +84,43 @@ impl RspRegs {
             dram_addr: 0,
             mem_addr: SP_DMEM_START,
             dma_read: DMARequest::default(),
+
+            dmem: vec![0; SP_DMEM_LENGTH as usize].into_boxed_slice(),
+            imem: vec![0; SP_IMEM_LENGTH as usize].into_boxed_slice(),
+
+            hle_operation: None,
         }
     }
 
+    pub fn read_dmem(&self, offset: u32) -> u32 {
+        BigEndian::read_u32(&self.dmem[offset as usize..])
+    }
+    pub fn write_dmem(&mut self, offset: u32, value: u32) {
+        BigEndian::write_u32(&mut self.dmem[offset as usize..], value);
+    }
+    pub fn read_imem(&self, offset: u32) -> u32 {
+        BigEndian::read_u32(&self.imem[offset as usize..])
+    }
+    pub fn write_imem(&mut self, offset: u32, value: u32) {
+        BigEndian::write_u32(&mut self.imem[offset as usize..], value);
+    }
+    pub fn read_dmem_byte(&self, offset: u32) -> u8 {
+        self.dmem[offset as usize]
+    }
+    pub fn write_dmem_byte(&mut self, offset: u32, value: u8) {
+        self.dmem[offset as usize] = value;
+    }
+    pub fn read_imem_byte(&self, offset: u32) -> u8 {
+        self.imem[offset as usize]
+    }
+    pub fn write_imem_byte(&mut self, offset: u32, value: u8) {
+        self.imem[offset as usize] = value;
+    }
+
+
+
     pub fn get_dma_read_chunk(&mut self) -> DMARequest {
-        self.dma_read.get_chunk(256) // Completely arbitrary chunk size...
+        self.dma_read.get_chunk(8192) // Completely arbitrary chunk size...
     }
 
     pub fn write_mem_addr_reg(&mut self, value: u32) {
@@ -96,7 +141,8 @@ impl RspRegs {
             from: self.dram_addr,
             to: self.mem_addr,
             length: (value & 0x0ffc) + 4,
-        }
+        };
+        println!("[RSP][DMA] from {:?}", self.dma_read);
     }
 
     // TODO: Read dma/single-step regs
@@ -117,6 +163,9 @@ impl RspRegs {
     }
 
     pub fn write_status_reg(&mut self, value: u32) {
+        let is_halted_or_broke = self.status.halt ||
+                                 self.status.broke;
+
         // TODO: What happens if both a set and clear bit are set?
         if (value & (1 <<  0)) != 0 { self.status.halt = false; }
         if (value & (1 <<  1)) != 0 { self.status.halt = true; }
@@ -149,7 +198,30 @@ impl RspRegs {
         if (value & (1 << 23)) != 0 { self.status.signal7 = false; }
         if (value & (1 << 24)) != 0 { self.status.signal7 = true; }
 
+        // The RSP has just been reactivated, look to see if we can emulate the task using HLE
+        if (is_halted_or_broke && !self.status.halt && !self.status.broke)
+        {
+            self.try_hle_emulation();
+        }
+
         println!("WARNING: RSP Status reg was written to {:?}", self.status);
+    }
+
+    pub fn try_hle_emulation(&mut self)
+    {
+        self.hle_operation = None;
+
+        let task_ucode_boot_size = self.read_dmem(0xfcc);
+        if (task_ucode_boot_size > 1000)
+        {
+            let mut sum: u32 = 0;
+            for i in 0..44 {
+                sum += self.imem[i as usize] as u32;
+            }
+            if sum == 0x09e2 {
+                self.hle_operation = Some(RspHleOperation::Cicx105Ucode);
+            }
+        }
     }
 
     pub fn read_dma_busy_reg(&self) -> u32 {
@@ -188,6 +260,38 @@ impl Rsp {
         // TODO: Find out how halt and break work together
         if interconnect.rsp().status.halt || interconnect.rsp().status.broke {
             return;
+        }
+
+        if let Some(hle_op) = interconnect.rsp().hle_operation.take() {
+            match hle_op {
+                RspHleOperation::Cicx105Ucode => {
+                    println!("[RSP][HLE] CIC x105 uCode emulation");
+
+                    // dma_read(0x1120, 0x1e8, 0x1e8)
+                    for i in 0..0x7C {
+                        let val = interconnect.read_word(0x01e8 + i * 4);
+                        interconnect.write_word(0x0400_1000 + 0x0120 + i * 4, val);
+                    }
+
+                    /* dma_write(0x1120, 0x2fb1f0, 0xfe817000) */
+                    let mut dst_addr = 0x002f_b1f0;
+                    let mut src_imem_addr = 0x0120;
+                    for i in 0..24 {
+                        let val1 = interconnect.read_word(0x0400_1000 + src_imem_addr + 0);
+                        let val2 = interconnect.read_word(0x0400_1000 + src_imem_addr + 4);
+                        interconnect.write_word(dst_addr + 0, val1);
+                        interconnect.write_word(dst_addr + 4, val2);
+                        dst_addr += 0xff0;
+                        src_imem_addr += 0x8;
+
+                    }
+
+                    interconnect.rsp().status.broke = true;
+                    interconnect.rsp().status.halt = true;
+
+                    return;
+                }
+            }
         }
 
         if let Some(pc) = self.delay_slot_pc {

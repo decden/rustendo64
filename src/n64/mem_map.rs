@@ -1,5 +1,5 @@
 const RDRAM_START: u32 =            0x0000_0000;
-pub const RDRAM_LENGTH: u32 =       0x0040_0000;
+pub const RDRAM_LENGTH: u32 =       0x0080_0000; // 8 or 4 MB depending on whether there is an expansion pack
 const RDRAM_END: u32 =              RDRAM_START + RDRAM_LENGTH - 1;
 const RDRAM_MODE_REG: u32 =         0x03f0_000c;
 

@@ -13,7 +13,7 @@ pub struct PeripheralInterface
 impl PeripheralInterface {
 
     pub fn get_dma_write_chunk(&mut self) -> DMARequest {
-        self.dma_write.get_chunk(256) // Completely arbitrary chunk size
+        self.dma_write.get_chunk(0x10000) // Completely arbitrary chunk size
     }
 
     pub fn write_dram_addr_reg(&mut self, value: u32) {
