@@ -4,6 +4,7 @@ extern crate byteorder;
 
 extern crate num;
 extern crate minifb;
+extern crate extprim;
 
 #[macro_use]
 extern crate enum_primitive;

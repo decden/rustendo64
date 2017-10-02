@@ -5,6 +5,9 @@ use super::opcode::SpecialOpcode::*;
 use super::opcode::Cop1Opcode;
 use super::super::Interconnect;
 
+use extprim::i128::i128;
+use extprim::u128::u128;
+
 use std::fmt;
 
 const NUM_GPR: usize = 32;
@@ -155,7 +158,20 @@ impl Cpu {
                         self.reg_hi = (rs % rt) as u64;
                     }
                     Dmult => {
-                        panic!("DMULT not implemented");
+                        let rs = i128::new(self.read_reg_gpr(instr.rs()) as i64);
+                        let rt = i128::new(self.read_reg_gpr(instr.rt()) as i64);
+                        let mul = rs * rt;
+
+                        self.reg_lo = mul.low64();
+                        self.reg_hi = mul.high64() as u64;
+                    }
+                    Dmultu => {
+                        let rs = u128::new(self.read_reg_gpr(instr.rs()));
+                        let rt = u128::new(self.read_reg_gpr(instr.rt()));
+                        let mul = rs * rt;
+
+                        self.reg_lo = mul.low64();
+                        self.reg_hi = mul.high64();
                     }
                     Ddiv => {
                         let rs = self.read_reg_gpr(instr.rs()) as i64;
@@ -203,6 +219,7 @@ impl Cpu {
             RegImm => {
                 match instr.reg_imm_op() {
                     Bltz => { self.branch(instr, WriteLink::No, |rs, _| (rs as i64) < 0); }
+                    Bgez => { self.branch(instr, WriteLink::No, |rs, _| (rs as i64) >= 0); }
                     Bgezl => { self.branch_likely(instr, |rs, _| (rs as i64) >= 0); }
                     Bgezal => { self.branch(instr, WriteLink::Yes, |rs, _| (rs as i64) >= 0); }
                 }
@@ -210,7 +227,7 @@ impl Cpu {
 
             Cop1 => {
                 match instr.cop1_op() {
-                    Cop1Opcode::Add => { println!("Float addition") },
+                    Cop1Opcode::Add => { println!("No support for floating point operations yet") },
                 }
             }
 
@@ -228,6 +245,8 @@ impl Cpu {
                 self.reg_pc = jump_to;
                 self.delay_slot_pc = Some(delay_slot_pc);
             }
+
+            Blez => { self.branch(instr, WriteLink::No, |rs, rt| (rs as i64) <= 0); }
 
             Addi =>
                 self.imm_instr(instr, SignExtendResult::Yes, |rs, _, imm_sign_extended| {

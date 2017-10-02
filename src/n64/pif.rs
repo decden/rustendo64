@@ -80,7 +80,7 @@ impl Pif {
                 }
                 0x30 => self.ram[0x3f] = 0x80,
                 0xC0 => self.ram[0x3f] = 0x40,
-                _ => panic!("Unknown PIF command 0x{:2X}", pif_control_byte),
+                _ => println!("Unknown PIF command 0x{:2X}", pif_control_byte),
             }
         }
         else {

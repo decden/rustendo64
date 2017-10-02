@@ -19,12 +19,17 @@ impl Cp0 {
     pub fn write_reg(&mut self, index: u32, data: u64) {
         println!("CP0 Instr {:?}, {:#016}", index, data);
         match index {
+             0 => { println!("WARNING: Writing to Index CP0 Reg {:08X}", data) }
+             2 => { println!("WARNING: Writing to EntryLo0 CP0 Reg {:08X}", data) }
+             3 => { println!("WARNING: Writing to EntryLo1 CP0 Reg {:08X}", data) }
+             5 => { println!("WARNING: Writing to PageMask CP0 Reg {:08X}", data) }
              9 => self.reg_count = data as u32,
             11 => {
                 self.reg_compare = data as u32;
                 self.reg_cause.clearTimerInterruptPending();
                 println!("A timer interrupt is set to trigger when the counter reaches {:08X}", data as u32);
             },
+            10 => { println!("WARNING: Writing to EntryHi CP0 Reg {:08X}", data) }
             12 => self.reg_status = (data as u32).into(),
             13 => {
                 // Only software interrupt pending flags can be written to

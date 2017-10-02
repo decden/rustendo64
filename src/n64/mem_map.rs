@@ -28,11 +28,6 @@ const MI_MODE_REG: u32 =            0x0430_0000;
 const MI_VERSION_REG: u32 =         0x0430_0004;
 const MI_INTR_MASK_REG: u32 =       0x0430_000C;
 
-const AI_BASE_REG: u32 =            0x0450_0000;
-const AI_DRAM_ADDR_REG: u32 =       0x0450_0000;
-const AI_LEN_REG: u32 =             0x0450_0004;
-const AI_STATUS_REG: u32 =          0x0450_000C;
-
 const VI_STATUS_REG: u32 =          0x0440_0000;
 const VI_ORIGIN_REG: u32 =          0x0440_0004;
 const VI_WIDTH_REG: u32 =           0x0440_0008;
@@ -48,6 +43,14 @@ const VI_V_BURST_REG: u32 =         0x0440_002C;
 const VI_X_SCALE_REG: u32 =         0x0440_0030;
 const VI_Y_SCALE_REG: u32 =         0x0440_0034;
 
+const AI_BASE_REG: u32 =            0x0450_0000;
+const AI_DRAM_ADDR_REG: u32 =       0x0450_0000;
+const AI_LEN_REG: u32 =             0x0450_0004;
+const AI_CONTROL_REG: u32 =         0x0450_0008;
+const AI_STATUS_REG: u32 =          0x0450_000C;
+const AI_DACRATE_REG: u32 =         0x0450_0010;
+const AI_BITRATE_REG: u32 =         0x0450_0014;
+
 const PI_DRAM_ADDRESS_REG: u32 =    0x0460_0000;
 const PI_CART_ADDR_REG: u32 =       0x0460_0004;
 const PI_WR_LEN_REG: u32 =          0x0460_000C;
@@ -56,6 +59,10 @@ const PI_BSD_DOM1_LAT_REG: u32 =    0x0460_0014;
 const PI_BSD_DOM1_PWD_REG: u32 =    0x0460_0018;
 const PI_BSD_DOM1_PGS_REG: u32 =    0x0460_001c;
 const PI_BSD_DOM1_RLS_REG: u32 =    0x0460_0020;
+const PI_BSD_DOM2_LAT_REG: u32 =    0x0460_0024;
+const PI_BSD_DOM2_PWD_REG: u32 =    0x0460_0028;
+const PI_BSD_DOM2_PGS_REG: u32 =    0x0460_002c;
+const PI_BSD_DOM2_RLS_REG: u32 =    0x0460_0030;
 
 const RI_MODE_REG: u32 =            0x0470_0000;
 const RI_CONFIG_REG: u32 =          0x0470_0004;
@@ -103,10 +110,6 @@ pub enum Addr {
     MiVersionReg,
     MiIntrMaskReg,
 
-    AiDramAddrReg,
-    AiLenReg,
-    AiStatusReg,
-
     ViStatusReg,
     ViOriginReg,
     ViWidthReg,
@@ -122,6 +125,13 @@ pub enum Addr {
     ViXScaleReg,
     ViYScaleReg,
 
+    AiDramAddrReg,
+    AiLenReg,
+    AiControlReg,
+    AiStatusReg,
+    AiDacrateReg,
+    AiBitrateReg,
+
     PiDramAddrReg,
     PiCartAddrReg,
     PiWrLenReg,
@@ -130,6 +140,10 @@ pub enum Addr {
     PiBsdDom1PwdReg,
     PiBsdDom1PgsReg,
     PiBsdDom1RlsReg,
+    PiBsdDom2LatReg,
+    PiBsdDom2PwdReg,
+    PiBsdDom2PgsReg,
+    PiBsdDom2RlsReg,
 
     RiModeReg,
     RiConfigReg,
@@ -178,10 +192,6 @@ pub fn map_addr(addr: u32) -> Addr {
         MI_VERSION_REG => Addr::MiVersionReg,
         MI_INTR_MASK_REG => Addr::MiIntrMaskReg,
 
-        AI_DRAM_ADDR_REG => Addr::AiDramAddrReg,
-        AI_LEN_REG => Addr::AiLenReg,
-        AI_STATUS_REG => Addr::AiStatusReg,
-
         VI_STATUS_REG => Addr::ViStatusReg,
         VI_ORIGIN_REG => Addr::ViOriginReg,
         VI_WIDTH_REG => Addr::ViWidthReg,
@@ -197,6 +207,13 @@ pub fn map_addr(addr: u32) -> Addr {
         VI_X_SCALE_REG => Addr::ViXScaleReg,
         VI_Y_SCALE_REG => Addr::ViYScaleReg,
 
+        AI_DRAM_ADDR_REG => Addr::AiDramAddrReg,
+        AI_LEN_REG => Addr::AiLenReg,
+        AI_CONTROL_REG => Addr::AiControlReg,
+        AI_STATUS_REG => Addr::AiStatusReg,
+        AI_DACRATE_REG => Addr::AiDacrateReg,
+        AI_BITRATE_REG => Addr::AiBitrateReg,
+
         PI_DRAM_ADDRESS_REG => Addr::PiDramAddrReg,
         PI_CART_ADDR_REG => Addr::PiCartAddrReg,
         PI_WR_LEN_REG => Addr::PiWrLenReg,
@@ -205,6 +222,10 @@ pub fn map_addr(addr: u32) -> Addr {
         PI_BSD_DOM1_PWD_REG => Addr::PiBsdDom1PwdReg,
         PI_BSD_DOM1_PGS_REG => Addr::PiBsdDom1PgsReg,
         PI_BSD_DOM1_RLS_REG => Addr::PiBsdDom1RlsReg,
+        PI_BSD_DOM2_LAT_REG => Addr::PiBsdDom2LatReg,
+        PI_BSD_DOM2_PWD_REG => Addr::PiBsdDom2PwdReg,
+        PI_BSD_DOM2_PGS_REG => Addr::PiBsdDom2PgsReg,
+        PI_BSD_DOM2_RLS_REG => Addr::PiBsdDom2RlsReg,
 
         RI_MODE_REG => Addr::RiModeReg,
         RI_CONFIG_REG => Addr::RiConfigReg,

@@ -6,6 +6,8 @@ enum_from_primitive! {
 
         J =       0b000010,
         Jal =     0b000011,
+        
+        Blez =    0b000110,
 
         Addi =    0b001000,
         Addiu =   0b001001,
@@ -77,6 +79,7 @@ enum_from_primitive! {
         Div =    0b011010,
         Divu =   0b011011,
         Dmult =  0b011100,
+        Dmultu = 0b011101,
         Ddiv =   0b011110,
         Ddivu =  0b011111,
 
@@ -111,6 +114,7 @@ enum_from_primitive! {
     #[derive(Debug)]
     pub enum RegImmOpcode {
         Bltz =   0b00000,
+        Bgez =   0b00001,
         Bgezl =  0b00011,
         Bgezal = 0b10001,
     }

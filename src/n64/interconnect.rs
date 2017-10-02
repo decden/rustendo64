@@ -97,18 +97,22 @@ impl Interconnect {
             Addr::MiModeReg => self.mi.read_mode_reg(),
             Addr::MiVersionReg => self.mi.read_version_reg(),
 
-            Addr::AiDramAddrReg => self.ai.read_dram_addr_reg(),
-            Addr::AiLenReg => self.ai.read_len_reg(),
-
             Addr::ViIntrReg => self.vi.read_intr_reg(),
             Addr::ViCurrentReg => self.vi.read_current_reg(),
             Addr::ViHStartReg => self.vi.read_h_start_reg(),
+
+            Addr::AiDramAddrReg => self.ai.read_dram_addr_reg(),
+            Addr::AiLenReg => self.ai.read_len_reg(),
 
             Addr::PiStatusReg => self.pi.read_status_reg(),
             Addr::PiBsdDom1LatReg => self.pi.read_bsd_dom1_lat_reg(),
             Addr::PiBsdDom1PwdReg => self.pi.read_bsd_dom1_pwd_reg(),
             Addr::PiBsdDom1PgsReg => self.pi.read_bsd_dom1_pgs_reg(),
             Addr::PiBsdDom1RlsReg => self.pi.read_bsd_dom1_rls_reg(),
+            Addr::PiBsdDom2LatReg => self.pi.read_bsd_dom2_lat_reg(),
+            Addr::PiBsdDom2PwdReg => self.pi.read_bsd_dom2_pwd_reg(),
+            Addr::PiBsdDom2PgsReg => self.pi.read_bsd_dom2_pgs_reg(),
+            Addr::PiBsdDom2RlsReg => self.pi.read_bsd_dom2_rls_reg(),
 
             Addr::RiSelectReg => self.ri.read_select_reg(),
             Addr::RiRefreshReg => self.ri.read_refresh_reg(),
@@ -149,10 +153,6 @@ impl Interconnect {
             Addr::MiModeReg => self.mi.write_mode_reg(value),
             Addr::MiIntrMaskReg => self.mi.write_intr_mask_reg(value),
 
-            Addr::AiDramAddrReg => self.ai.write_dram_addr_reg(value),
-            Addr::AiLenReg => self.ai.write_len_reg(value),
-            Addr::AiStatusReg => self.ai.write_status_reg(value),
-
             Addr::ViStatusReg => self.vi.write_status_reg(value),
             Addr::ViOriginReg => self.vi.write_origin_reg(value),
             Addr::ViWidthReg => self.vi.write_width_reg(value),
@@ -168,6 +168,13 @@ impl Interconnect {
             Addr::ViXScaleReg => self.vi.write_x_scale_reg(value),
             Addr::ViYScaleReg => self.vi.write_y_scale_reg(value),
 
+            Addr::AiDramAddrReg => self.ai.write_dram_addr_reg(value),
+            Addr::AiLenReg => self.ai.write_len_reg(value),
+            Addr::AiControlReg => self.ai.write_control_reg(value),
+            Addr::AiStatusReg => self.ai.write_status_reg(value),
+            Addr::AiDacrateReg => self.ai.write_dacrate_reg(value),
+            Addr::AiBitrateReg => self.ai.write_bitrate_reg(value),
+
             Addr::PiDramAddrReg => self.pi.write_dram_addr_reg(value),
             Addr::PiCartAddrReg => self.pi.write_cart_addr_reg(value),
             Addr::PiWrLenReg => self.pi.write_wr_len_reg(value),
@@ -176,6 +183,10 @@ impl Interconnect {
             Addr::PiBsdDom1PwdReg => self.pi.write_bsd_dom1_pwd_reg(value),
             Addr::PiBsdDom1PgsReg => self.pi.write_bsd_dom1_pgs_reg(value),
             Addr::PiBsdDom1RlsReg => self.pi.write_bsd_dom1_rls_reg(value),
+            Addr::PiBsdDom2LatReg => self.pi.write_bsd_dom2_lat_reg(value),
+            Addr::PiBsdDom2PwdReg => self.pi.write_bsd_dom2_pwd_reg(value),
+            Addr::PiBsdDom2PgsReg => self.pi.write_bsd_dom2_pgs_reg(value),
+            Addr::PiBsdDom2RlsReg => self.pi.write_bsd_dom2_rls_reg(value),
 
             Addr::RiModeReg => self.ri.write_mode_reg(value),
             Addr::RiConfigReg => self.ri.write_config_reg(value),

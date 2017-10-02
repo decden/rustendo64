@@ -87,4 +87,44 @@ impl PeripheralInterface {
         // TODO: Proper impl (probably not necessary)
         println!("PI_BSD_DOM1_RLS_REG written: {:#x}", value);
     }
+
+    pub fn read_bsd_dom2_lat_reg(&self) -> u32 {
+        // TODO: Proper impl (probably not necessary)
+        0
+    }
+
+    pub fn write_bsd_dom2_lat_reg(&mut self, value: u32) {
+        // TODO: Proper impl (probably not necessary)
+        println!("PI_BSD_DOM2_LAT_REG written: {:#x}", value);
+    }
+
+    pub fn read_bsd_dom2_pwd_reg(&self) -> u32 {
+        // TODO: Proper impl (probably not necessary)
+        0
+    }
+
+    pub fn write_bsd_dom2_pwd_reg(&mut self, value: u32) {
+        // TODO: Proper impl (probably not necessary)
+        println!("PI_BSD_DOM2_PWD_REG written: {:#x}", value);
+    }
+
+    pub fn read_bsd_dom2_pgs_reg(&self) -> u32 {
+        // TODO: Proper impl (probably not necessary)
+        0
+    }
+
+    pub fn write_bsd_dom2_pgs_reg(&mut self, value: u32) {
+        // TODO: Proper impl (probably not necessary)
+        println!("PI_BSD_DOM2_PGS_REG written: {:#x}", value);
+    }
+
+    pub fn read_bsd_dom2_rls_reg(&self) -> u32 {
+        // TODO: Proper impl (probably not necessary)
+        0
+    }
+
+    pub fn write_bsd_dom2_rls_reg(&mut self, value: u32) {
+        // TODO: Proper impl (probably not necessary)
+        println!("PI_BSD_DOM2_RLS_REG written: {:#x}", value);
+    }
 }
