@@ -96,6 +96,7 @@ impl Interconnect {
 
             Addr::MiModeReg => self.mi.read_mode_reg(),
             Addr::MiVersionReg => self.mi.read_version_reg(),
+            Addr::MiIntrMaskReg => self.mi.read_intr_mask_reg(),
 
             Addr::ViIntrReg => self.vi.read_intr_reg(),
             Addr::ViCurrentReg => self.vi.read_current_reg(),

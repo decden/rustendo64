@@ -2,7 +2,7 @@ use super::{cp0, Instruction};
 use super::opcode::Opcode::*;
 use super::opcode::RegImmOpcode::*;
 use super::opcode::SpecialOpcode::*;
-use super::opcode::Cop1Opcode;
+use super::opcode::{Cop0Opcode, Cop0CoOpcode, Cop1Opcode};
 use super::super::Interconnect;
 
 use extprim::i128::i128;
@@ -233,6 +233,25 @@ impl Cpu {
                 }
             }
 
+            Cop0 => {
+                match instr.cop0_op() {
+                    Cop0Opcode::Mfc0 => {
+                        let data = self.cp0.read_reg(instr.rd());
+                        self.write_reg_gpr(instr.rt(), data);
+                    }
+                    Cop0Opcode::Mtc0 => {
+                        let data = self.read_reg_gpr(instr.rt());
+                        self.cp0.write_reg(instr.rd(), data);
+                    }
+                    Cop0Opcode::Co => {
+                        match instr.cop0_co_op() {
+                            Cop0CoOpcode::Tlbwi => self.cp0.store_tlb_entry(),
+                            Cop0CoOpcode::Eret => self.reg_pc = self.cp0.read_reg(14 /* EPC */),
+                        }
+                    }
+                }
+            }
+
             Cop1 => {
                 match instr.cop1_op() {
                     Cop1Opcode::Add => { println!("No support for floating point operations yet") },
@@ -270,11 +289,6 @@ impl Cpu {
             Xori => self.imm_instr(instr, SignExtendResult::No, |rs, imm, _| rs ^ imm),
 
             Lui => self.imm_instr(instr, SignExtendResult::Yes, |_, imm, _| imm << 16),
-
-            Mtc0 => {
-                let data = self.read_reg_gpr(instr.rt());
-                self.cp0.write_reg(instr.rd(), data);
-            }
 
             Beq => { self.branch(instr, WriteLink::No, |rs, rt| rs == rt); }
             Bne => { self.branch(instr, WriteLink::No, |rs, rt| rs != rt); }

@@ -19,7 +19,7 @@ enum_from_primitive! {
         Xori =    0b001110,
 
         Lui =     0b001111,
-        Mtc0 =    0b010000,
+        Cop0 =    0b010000,
         Cop1 =    0b010001,
 
         Beq =     0b000100,
@@ -121,6 +121,23 @@ enum_from_primitive! {
         Bgez =   0b00001,
         Bgezl =  0b00011,
         Bgezal = 0b10001,
+    }
+}
+
+enum_from_primitive! {
+    #[derive(Debug)]
+    pub enum Cop0Opcode {
+        Mfc0 =    0b00000,
+        Mtc0 =    0b00100,
+        Co =      0b10000,
+    }
+}
+
+enum_from_primitive! {
+    #[derive(Debug)]
+    pub enum Cop0CoOpcode {
+        Tlbwi =   0b000010,
+        Eret =    0b011000,
     }
 }
 

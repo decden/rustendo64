@@ -21,6 +21,20 @@ impl RegCause {
     {
         self.ip_timer = false;
     }
+
+    pub fn to_u32(&self) -> u32 {
+        (if self.bd { 1 << 31 } else { 0 }) |
+        ((self.ce as u32) << 28) |
+        (if self.ip_timer { 1 << 15 } else { 0 }) |
+        (if self.ip_external[0] { 1 << 10 } else { 0 }) |
+        (if self.ip_external[1] { 1 << 11 } else { 0 }) |
+        (if self.ip_external[2] { 1 << 12 } else { 0 }) |
+        (if self.ip_external[3] { 1 << 13 } else { 0 }) |
+        (if self.ip_external[4] { 1 << 14 } else { 0 }) |
+        (if self.ip_software[0] { 1 <<  8 } else { 0 }) |
+        (if self.ip_software[1] { 1 <<  9 } else { 0 }) |
+        (self.exception_code as u32) << 2
+    }
 }
 
 impl From<u32> for RegCause {

@@ -65,6 +65,15 @@ impl MipsInterface {
         println!("WARNING: Stub for write MI mode register {:08X}", value);
     }
 
+    pub fn read_intr_mask_reg(&self) -> u32 {
+        (if self.intr_mask.sp_intr_mask { 1 << 0 } else { 0 }) |
+        (if self.intr_mask.si_intr_mask { 1 << 1 } else { 0 }) |
+        (if self.intr_mask.ai_intr_mask { 1 << 2 } else { 0 }) |
+        (if self.intr_mask.vi_intr_mask { 1 << 3 } else { 0 }) |
+        (if self.intr_mask.pi_intr_mask { 1 << 4 } else { 0 }) |
+        (if self.intr_mask.dp_intr_mask { 1 << 5 } else { 0 })
+    }
+
     pub fn write_intr_mask_reg(&mut self, value: u32) {
         if (value & (1 <<  0)) != 0  { self.intr_mask.sp_intr_mask = false; }
         if (value & (1 <<  1)) != 0  { self.intr_mask.sp_intr_mask = true; }
