@@ -114,6 +114,18 @@ impl Cpu {
                         self.delay_slot_pc = Some(delay_slot_pc);
                     }
 
+                    Jalr => {
+                        let delay_slot_pc = self.reg_pc;
+
+                        let reg_pc = self.read_reg_gpr(instr.rs());
+
+                        let link_address = delay_slot_pc + 4;
+                        self.write_reg_gpr(instr.rd() as usize, link_address);
+
+                        self.delay_slot_pc = Some(delay_slot_pc);
+
+                    }
+
                     Sync => {
                         // Basically a NOP on vr4300
                     }
@@ -150,6 +162,17 @@ impl Cpu {
                     Dsllv => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rt << (rs & 0b111111)),
                     Dsrlv => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rt >> (rs & 0b111111)),
                     Dsrav => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| ((rt as i64) >> (rs & 0b111111)) as u64),
+                    Mult => {
+                        let rs = self.read_reg_gpr(instr.rs()) as i32;
+                        let rt = self.read_reg_gpr(instr.rt()) as i32;
+
+                        let res = (rs as i64) * (rt as i64);
+
+                        // TODO: Undefined if last 2 instructions were
+                        //  MFHI or MFLO
+                        self.reg_lo = (res as i32) as u64;
+                        self.reg_hi = ((res >> 32) as i32) as u64;
+                    }
 
                     Div => {
                         let rs = self.read_reg_gpr(instr.rs()) as i32;
@@ -255,6 +278,11 @@ impl Cpu {
             Cop1 => {
                 match instr.cop1_op() {
                     Cop1Opcode::Add => { println!("No support for floating point operations yet") },
+                    Cop1Opcode::Sub => { println!("No support for floating point operations yet") },
+                    Cop1Opcode::Mul => { println!("No support for floating point operations yet") },
+                    Cop1Opcode::Div => { println!("No support for floating point operations yet") },
+                    Cop1Opcode::Mov => { println!("No support for floating point operations yet") },
+                    Cop1Opcode::Cle => { println!("No support for floating point operations yet") },
                 }
             }
 
@@ -302,25 +330,13 @@ impl Cpu {
             Daddiu => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
 
             Lb => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = (self.read_byte(interconnect, virt_addr) as i8) as u64;
-                self.write_reg_gpr(instr.rt(), mem);
+                let byte = self.read_byte(interconnect, self.resolve_offset(instr));
+                self.write_reg_gpr(instr.rt(), byte as i8 as u64);
             }
 
             Lh => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                if virt_addr & 0b1 != 0 { panic!("Address error exception: half-word address is not half-word aligned"); }
-
-                let mem = (self.read_byte(interconnect, virt_addr) as u16) << 8 |
-                          (self.read_byte(interconnect, virt_addr + 1) as u16);
-                let mem = mem as i16 as u64;
-                self.write_reg_gpr(instr.rt(), mem);
+                let halfword = self.read_halfword(interconnect, self.resolve_offset(instr));
+                self.write_reg_gpr(instr.rt(), halfword as i16 as u64);
             }
 
             Lwl => {
@@ -345,30 +361,18 @@ impl Cpu {
             }
 
             Lw => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = (self.read_word(interconnect, virt_addr) as i32) as u64;
-                self.write_reg_gpr(instr.rt(), mem);
+                let word = self.read_word(interconnect, self.resolve_offset(instr));
+                self.write_reg_gpr(instr.rt(), word as i32 as u64);
             }
 
             Lbu => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = self.read_byte(interconnect, virt_addr) as u64;
-                self.write_reg_gpr(instr.rt(), mem);
+                let byte = self.read_byte(interconnect, self.resolve_offset(instr));
+                self.write_reg_gpr(instr.rt(), byte as u64);
             }
 
             Lhu => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = self.read_halfword(interconnect, virt_addr) as u64;
-                self.write_reg_gpr(instr.rt(), mem);
+                let halfword = self.read_halfword(interconnect, self.resolve_offset(instr));
+                self.write_reg_gpr(instr.rt(), halfword as u64);
             }
 
             Lwr => {
@@ -394,40 +398,27 @@ impl Cpu {
             }
 
             Lwu => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = self.read_word(interconnect, virt_addr) as u64;
-                self.write_reg_gpr(instr.rt(), mem);
+                let word = self.read_word(interconnect, self.resolve_offset(instr));
+                self.write_reg_gpr(instr.rt(), word as u64);
             }
 
             Sb => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = (self.read_reg_gpr(instr.rt()) & 0xff) as u8;
-                self.write_byte(interconnect, virt_addr, mem);
+                let byte = (self.read_reg_gpr(instr.rt()) & 0xff) as u8;
+                let virtual_addr = self.resolve_offset(instr);
+                self.write_byte(interconnect, virtual_addr, byte);
             }
 
             Sh => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = (self.read_reg_gpr(instr.rt()) & 0xffff) as u16;
-                self.write_byte(interconnect, virt_addr, (mem >> 8) as u8);
-                self.write_byte(interconnect, virt_addr + 1, (mem & 0xff) as u8);
+                let virt_addr = self.resolve_offset(instr);
+                let halfword = (self.read_reg_gpr(instr.rt()) & 0xffff) as u16;
+                self.write_byte(interconnect, virt_addr, (halfword >> 8) as u8);
+                self.write_byte(interconnect, virt_addr + 1, (halfword & 0xff) as u8);
             }
 
             Sw => {
-                let base = instr.rs();
-
-                let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = self.read_reg_gpr(instr.rt()) as u32;
-                self.write_word(interconnect, virt_addr, mem);
+                let virt_addr = self.resolve_offset(instr);
+                let word = self.read_reg_gpr(instr.rt()) as u32;
+                self.write_word(interconnect, virt_addr, word);
             }
 
             Cache => {
@@ -439,13 +430,34 @@ impl Cpu {
                 // println!("Cache {:#016X} {:#08X}", virt_addr, op);
             }
 
+            Ldc1 => {
+                // TODO: The following code behaves differently based on the precision!
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+
+                let mem = f64::from_bits(self.read_doubleword(interconnect, virt_addr));
+                self.write_reg_fpr(instr.rt(), mem);
+            }
+
+            Swc1 => {
+                // TODO: The following code behaves differently depending on the FR bit in the status register.
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = self.read_reg_fpr(instr.rt()).to_bits() as u32;
+                self.write_word(interconnect, virt_addr, mem);
+            }
+
             Ld => {
                 let base = instr.rs();
 
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = (self.read_word(interconnect, virt_addr) as u64) << 32 |
-                          (self.read_word(interconnect, virt_addr + 4) as u64);
+
+                let mem = self.read_doubleword(interconnect, virt_addr);
                 self.write_reg_gpr(instr.rt(), mem);
             }
 
@@ -491,6 +503,14 @@ impl Cpu {
         self.write_reg_gpr(instr.rd() as usize, value);
     }
 
+    fn resolve_offset(&self, instr: Instruction) -> u64
+    {
+        let base = instr.rs();
+        let sign_extended_offset = instr.offset_sign_extended();
+        let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+        virt_addr
+    }
+
     fn branch<F>(&mut self, instr: Instruction, write_link: WriteLink, f: F) -> bool
         where F: FnOnce(u64, u64) -> bool
     {
@@ -523,6 +543,11 @@ impl Cpu {
             // Skip over delay slot instruction when not branching
             self.reg_pc = self.reg_pc.wrapping_add(4);
         }
+    }
+
+    fn read_doubleword(&self, interconnect: &mut Interconnect, virt_addr: u64) -> u64 {
+        (self.read_word(interconnect, virt_addr + 0) as u64) << 32 |
+        (self.read_word(interconnect, virt_addr + 4) as u64)
     }
 
     fn read_word(&self, interconnect: &mut Interconnect, virt_addr: u64) -> u32 {
@@ -577,6 +602,14 @@ impl Cpu {
             0 => 0,
             _ => self.reg_gpr[index],
         }
+    }
+
+    fn write_reg_fpr(&mut self, index: usize, value: f64) {
+        self.reg_fpr[index] = value;
+    }
+
+    fn read_reg_fpr(&self, index: usize) -> f64 {
+        self.reg_fpr[index]
     }
 }
 

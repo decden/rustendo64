@@ -42,11 +42,16 @@ enum_from_primitive! {
         Lwr =     0b100110,
         Lwu =     0b100111,
 
+
         Sb =      0b101000,
         Sh =      0b101001,
         Sw =      0b101011,
 
         Cache =   0b101111,
+
+        Ldc1 =    0b110101,
+
+        Swc1 =    0b111001,
 
         Ld =      0b110111,
         Sd =      0b111111,
@@ -66,6 +71,7 @@ enum_from_primitive! {
         Srav =   0b000111,
 
         Jr =     0b001000,
+        Jalr =   0b001001,
 
         Sync =   0b001111,
 
@@ -79,6 +85,8 @@ enum_from_primitive! {
         Dsllv =  0b010100,
         Dsrlv =  0b010110,
         Dsrav =  0b010111,
+
+        Mult =   0b011000,
 
         Div =    0b011010,
         Divu =   0b011011,
@@ -145,5 +153,11 @@ enum_from_primitive! {
     #[derive(Debug)]
     pub enum Cop1Opcode {
         Add =    0b000000,
+        Sub =    0b000001,
+        Mul =    0b000010,
+        Div =    0b000011,
+        Mov =    0b000110,
+
+        Cle =    0b111110, // 17.6 FPU Instruction Opcode Bit Encoding 
     }
 }
