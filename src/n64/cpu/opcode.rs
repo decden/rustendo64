@@ -12,6 +12,7 @@ enum_from_primitive! {
         Addi =    0b001000,
         Addiu =   0b001001,
         Slti =    0b001010,
+        Sltiu =   0b001011,
 
         Andi =    0b001100,
         Ori =     0b001101,
@@ -37,6 +38,7 @@ enum_from_primitive! {
         Lwl =     0b100010,
         Lw =      0b100011,
         Lbu =     0b100100,
+        Lhu =     0b100101,
         Lwr =     0b100110,
         Lwu =     0b100111,
 
@@ -70,7 +72,9 @@ enum_from_primitive! {
         Multu =  0b011001,
 
         Mfhi =   0b010000,
+        Mthi =   0b010001,
         Mflo =   0b010010,
+        Mtlo =   0b010011,
 
         Dsllv =  0b010100,
         Dsrlv =  0b010110,

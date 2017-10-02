@@ -175,7 +175,10 @@ impl From<u32> for Mode {
             0b00 => Mode::Kernel,
             0b01 => Mode::Supervisor,
             0b10 => Mode::User,
-            _ => panic!("Invalid cp0 KSU bits: {:#b}", value),
+            _ => {
+                println!("Invalid cp0 KSU bits: {:#b}", value);
+                Mode::Kernel
+            }
         }
     }
 }

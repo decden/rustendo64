@@ -5,8 +5,9 @@ pub struct Cp0 {
     reg_count: u32,
     reg_compare: u32,
     reg_status: reg_status::RegStatus,
-    reg_config: reg_config::RegConfig,
     reg_cause: reg_cause::RegCause,
+    reg_epc: u64, // Exception program counter
+    reg_config: reg_config::RegConfig,
 
     reg_watch_lo: u32,
     reg_watch_hi: u32,
@@ -28,12 +29,16 @@ impl Cp0 {
                 self.reg_compare = data as u32;
                 self.reg_cause.clearTimerInterruptPending();
                 println!("A timer interrupt is set to trigger when the counter reaches {:08X}", data as u32);
-            },
+            }
             10 => { println!("WARNING: Writing to EntryHi CP0 Reg {:08X}", data) }
             12 => self.reg_status = (data as u32).into(),
             13 => {
                 // Only software interrupt pending flags can be written to
                 self.reg_cause.setSoftwareInterruptPendingFields(data as u32);
+            }
+            14 => {
+                println!("WARNING: Setting CP0 EPC to {:016X}", data);
+                self.reg_epc = data;
             }
             16 => self.reg_config = (data as u32).into(),
             18 => self.reg_watch_lo = (data as u32),

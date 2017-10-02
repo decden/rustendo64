@@ -134,9 +134,17 @@ impl Cpu {
                         let value = self.reg_hi;
                         self.write_reg_gpr(instr.rd() as usize, value);
                     }
+                    Mthi => {
+                        let value = self.read_reg_gpr(instr.rs());
+                        self.reg_hi = value;
+                    }
                     Mflo => {
                         let value = self.reg_lo;
                         self.write_reg_gpr(instr.rd() as usize, value);
+                    }
+                    Mtlo => {
+                        let value = self.read_reg_gpr(instr.rs());
+                        self.reg_lo = value;
                     }
 
                     Dsllv => self.reg_instr(instr, SignExtendResult::No, |rs, rt, _| rt << (rs & 0b111111)),
@@ -255,6 +263,7 @@ impl Cpu {
                 }),
             Addiu => self.imm_instr(instr, SignExtendResult::Yes, |rs, _, imm_sign_extended| rs.wrapping_add(imm_sign_extended)),
             Slti => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| if (rs as i64) < (imm_sign_extended as i64) { 1 } else { 0 } ),
+            Sltiu => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| if rs < imm_sign_extended { 1 } else { 0 } ),
 
             Andi => self.imm_instr(instr, SignExtendResult::No, |rs, imm, _| rs & imm),
             Ori => self.imm_instr(instr, SignExtendResult::No, |rs, imm, _| rs | imm),
@@ -336,6 +345,15 @@ impl Cpu {
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
                 let mem = self.read_byte(interconnect, virt_addr) as u64;
+                self.write_reg_gpr(instr.rt(), mem);
+            }
+
+            Lhu => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = self.read_halfword(interconnect, virt_addr) as u64;
                 self.write_reg_gpr(instr.rt(), mem);
             }
 
@@ -496,6 +514,12 @@ impl Cpu {
     fn read_word(&self, interconnect: &mut Interconnect, virt_addr: u64) -> u32 {
         let phys_addr = self.virt_addr_to_phys_addr(virt_addr);
         interconnect.read_word(phys_addr as u32)
+    }
+
+    fn read_halfword(&self, interconnect: &mut Interconnect, virt_addr: u64) -> u16 {
+        let hi = self.read_byte(interconnect, virt_addr) as u16;
+        let lo = self.read_byte(interconnect, virt_addr + 1) as u16;
+        hi << 8 | lo
     }
 
     fn read_byte(&self, interconnect: &mut Interconnect, virt_addr: u64) -> u8 {
