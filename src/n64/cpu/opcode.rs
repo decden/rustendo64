@@ -6,7 +6,7 @@ enum_from_primitive! {
 
         J =       0b000010,
         Jal =     0b000011,
-        
+
         Blez =    0b000110,
 
         Addi =    0b001000,
@@ -45,7 +45,9 @@ enum_from_primitive! {
 
         Sb =      0b101000,
         Sh =      0b101001,
+        Swl =     0b101010,
         Sw =      0b101011,
+        Swr =     0b101110,
 
         Cache =   0b101111,
 
@@ -158,6 +160,6 @@ enum_from_primitive! {
         Div =    0b000011,
         Mov =    0b000110,
 
-        Cle =    0b111110, // 17.6 FPU Instruction Opcode Bit Encoding 
+        Cle =    0b111110, // 17.6 FPU Instruction Opcode Bit Encoding
     }
 }
