@@ -2,9 +2,9 @@
 
 extern crate byteorder;
 
-extern crate num;
-extern crate minifb;
 extern crate extprim;
+extern crate minifb;
+extern crate num;
 
 #[macro_use]
 extern crate enum_primitive;
@@ -12,16 +12,16 @@ extern crate enum_primitive;
 #[macro_use]
 extern crate nom;
 
-mod n64;
 mod debugger;
 mod middleware;
+mod n64;
 
+use debugger::Debugger;
+use n64::N64;
 use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use debugger::Debugger;
-use n64::N64;
 
 fn main() {
     let pif_file_name = env::args().nth(1).unwrap();

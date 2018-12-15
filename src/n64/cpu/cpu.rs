@@ -117,8 +117,6 @@ impl Cpu {
                     Jalr => {
                         let delay_slot_pc = self.reg_pc;
 
-                        let reg_pc = self.read_reg_gpr(instr.rs());
-
                         let link_address = delay_slot_pc + 4;
                         self.write_reg_gpr(instr.rd() as usize, link_address);
 
@@ -292,14 +290,71 @@ impl Cpu {
                 }
             }
 
-            Cop1 => match instr.cop1_op() {
-                Cop1Opcode::Add => println!("No support for floating point operations yet"),
-                Cop1Opcode::Sub => println!("No support for floating point operations yet"),
-                Cop1Opcode::Mul => println!("No support for floating point operations yet"),
-                Cop1Opcode::Div => println!("No support for floating point operations yet"),
-                Cop1Opcode::Mov => println!("No support for floating point operations yet"),
-                Cop1Opcode::Cle => println!("No support for floating point operations yet"),
-            },
+            Cop1 => {
+                if instr.fmt() == 0b01000 {
+                    if instr.ft() == 0b00010 {
+                        let branch = (self.reg_fcr31 & 0x00400000) == 0;
+                        self.branch_likely(instr, |_, _| branch);
+                    } else if instr.ft() == 0b00000 {
+                        let branch = (self.reg_fcr31 & 0x00400000) == 0;
+                        self.branch(instr, WriteLink::No, |_, _| branch);
+                    }
+                } else {
+                    match (instr.cop1_op(), instr.fmt()) {
+                        (Cop1Opcode::Add, 16) => self.cp1_single_instr(instr, |fs, ft| fs + ft),
+                        (Cop1Opcode::Add, 17) => self.cp1_double_instr(instr, |fs, ft| fs + ft),
+                        (Cop1Opcode::Sub, 16) => self.cp1_single_instr(instr, |fs, ft| fs - ft),
+                        (Cop1Opcode::Sub, 17) => self.cp1_double_instr(instr, |fs, ft| fs - ft),
+                        (Cop1Opcode::Mul, 16) => self.cp1_single_instr(instr, |fs, ft| fs * ft),
+                        (Cop1Opcode::Mul, 17) => self.cp1_double_instr(instr, |fs, ft| fs * ft),
+                        (Cop1Opcode::Div, 16) => self.cp1_single_instr(instr, |fs, ft| fs / ft),
+                        (Cop1Opcode::Div, 17) => self.cp1_double_instr(instr, |fs, ft| fs / ft),
+                        (Cop1Opcode::Sqrt, 16) => self.cp1_single_instr(instr, |fs, _| fs.sqrt()),
+                        (Cop1Opcode::Sqrt, 17) => self.cp1_double_instr(instr, |fs, _| fs.sqrt()),
+                        (Cop1Opcode::Abs, 16) => self.cp1_single_instr(instr, |fs, _| fs.abs()),
+                        (Cop1Opcode::Abs, 17) => self.cp1_double_instr(instr, |fs, _| fs.abs()),
+                        (Cop1Opcode::Mov, 16) => self.cp1_single_instr(instr, |fs, _| fs),
+                        (Cop1Opcode::Mov, 17) => self.cp1_double_instr(instr, |fs, _| fs),
+                        (Cop1Opcode::Neg, 16) => self.cp1_single_instr(instr, |fs, _| -fs),
+                        (Cop1Opcode::Neg, 17) => self.cp1_double_instr(instr, |fs, _| -fs),
+                        (Cop1Opcode::RoundL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.round() as i64 as u64),
+                        (Cop1Opcode::RoundL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.round() as i64 as u64),
+                        (Cop1Opcode::TruncL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                        (Cop1Opcode::TruncL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                        (Cop1Opcode::CeilL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.ceil() as i64 as u64),
+                        (Cop1Opcode::CeilL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.ceil() as i64 as u64),
+                        (Cop1Opcode::FloorL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.floor() as i64 as u64),
+                        (Cop1Opcode::FloorL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.floor() as i64 as u64),
+                        (Cop1Opcode::RoundW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| fs.round() as i32 as u32),
+                        (Cop1Opcode::RoundW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| fs.round() as i32 as u32),
+                        (Cop1Opcode::TruncW, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                        (Cop1Opcode::TruncW, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                        (Cop1Opcode::CeilW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| fs.ceil() as i32 as u32),
+                        (Cop1Opcode::CeilW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| fs.ceil() as i32 as u32),
+                        (Cop1Opcode::FloorW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| fs.floor() as i32 as u32),
+                        (Cop1Opcode::FloorW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| fs.floor() as i32 as u32),
+                        (Cop1Opcode::CvtS, 17) => self.cp1_double_to_word_instr(instr, |fs, _| (fs as f32).to_bits()),
+                        (Cop1Opcode::CvtS, 20) => self.cp1_single_to_word_instr(instr, |fs, _| (fs.to_bits() as i32 as f32).to_bits()),
+                        (Cop1Opcode::CvtS, 21) => self.cp1_double_to_word_instr(instr, |fs, _| (fs.to_bits() as i64 as f32).to_bits()),
+                        (Cop1Opcode::CvtD, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs as f64).to_bits()),
+                        (Cop1Opcode::CvtD, 20) => {
+                            self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs.to_bits() as i32 as f64).to_bits())
+                        }
+                        (Cop1Opcode::CvtD, 21) => {
+                            self.cp1_double_to_doubleword_instr(instr, |fs, _| (fs.to_bits() as i64 as f64).to_bits())
+                        }
+                        (Cop1Opcode::CvtW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| (fs as i32 as u32)),
+                        (Cop1Opcode::CvtW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| (fs as i32 as u32)),
+                        (Cop1Opcode::CvtL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs as i64 as u64)),
+                        (Cop1Opcode::CvtL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| (fs as i64 as u64)),
+                        (Cop1Opcode::Ceq, 16) => self.cp1_single_cmp_instr(instr, |fs, ft| fs == ft),
+                        (Cop1Opcode::Ceq, 17) => self.cp1_double_cmp_instr(instr, |fs, ft| fs == ft),
+                        (Cop1Opcode::Cle, 16) => self.cp1_single_cmp_instr(instr, |fs, ft| fs <= ft),
+                        (Cop1Opcode::Cle, 17) => self.cp1_double_cmp_instr(instr, |fs, ft| fs <= ft),
+                        _ => panic!("Unsupported {:?} {:?} {} {:08X}", instr, instr.cop1_op(), instr.fmt(), instr.0),
+                    }
+                }
+            }
 
             J => {
                 let delay_slot_pc = self.reg_pc;
@@ -317,7 +372,7 @@ impl Cpu {
             }
 
             Blez => {
-                self.branch(instr, WriteLink::No, |rs, rt| (rs as i64) <= 0);
+                self.branch(instr, WriteLink::No, |rs, _rt| (rs as i64) <= 0);
             }
 
             Addi => self.imm_instr(instr, SignExtendResult::Yes, |rs, _, imm_sign_extended| {
@@ -359,12 +414,12 @@ impl Cpu {
                 self.branch(instr, WriteLink::No, |rs, rt| rs != rt);
             }
             Bgtz => {
-                self.branch(instr, WriteLink::No, |rs, rt| (rs as i64) > 0);
+                self.branch(instr, WriteLink::No, |rs, _rt| (rs as i64) > 0);
             }
 
             Beql => self.branch_likely(instr, |rs, rt| rs == rt),
             Bnel => self.branch_likely(instr, |rs, rt| rs != rt),
-            Blezl => self.branch_likely(instr, |rs, rt| (rs as i64) <= 0),
+            Blezl => self.branch_likely(instr, |rs, _rt| (rs as i64) <= 0),
 
             Daddi => self.imm_instr(instr, SignExtendResult::No, |rs, _, imm_sign_extended| {
                 rs.wrapping_add(imm_sign_extended)
@@ -423,7 +478,7 @@ impl Cpu {
                 let base = instr.rs();
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let aligned_addr = (virt_addr & 0xffff_ffff_ffff_fffC);
+                let aligned_addr = virt_addr & 0xffff_ffff_ffff_fffC;
 
                 let mem = self.read_word(interconnect, aligned_addr) as u64;
                 let reg = self.read_reg_gpr(instr.rt());
@@ -487,31 +542,51 @@ impl Cpu {
             Cache => {
                 // We are basically doing nothing here...
                 let base = instr.rs();
-                let op = instr.rt();
+                let _op = instr.rt();
                 let sign_extended_offset = instr.offset_sign_extended();
-                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let _virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
                 // println!("Cache {:#016X} {:#08X}", virt_addr, op);
             }
 
-            Ldc1 => {
-                // TODO: The following code behaves differently based on the precision!
+            Lwc1 => {
+                // TODO: Assuming here that FR is 1
                 let base = instr.rs();
 
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
+                let mem = self.read_word(interconnect, virt_addr);
+                let reg = self.read_reg_fpr(instr.rt()).to_bits();
+                let reg = (reg & 0xffffffff_00000000) | (mem as u64);
 
+                self.write_reg_fpr(instr.rt(), f64::from_bits(reg));
+            }
+
+            Ldc1 => {
+                let base = instr.rs();
+
+                let sign_extended_offset = instr.offset_sign_extended();
+                let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
                 let mem = f64::from_bits(self.read_doubleword(interconnect, virt_addr));
-                self.write_reg_fpr(instr.rt(), mem);
+
+                self.write_reg_fpr(instr.ft(), mem);
             }
 
             Swc1 => {
-                // TODO: The following code behaves differently depending on the FR bit in the status register.
+                // TODO: Assuming here that FR is 1
+                let virt_addr = self.resolve_offset(instr);
+
+                let word = self.read_reg_fpr(instr.rt()).to_bits();
+                self.write_word(interconnect, virt_addr, word as u32);
+            }
+
+            Sdc1 => {
                 let base = instr.rs();
 
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-                let mem = self.read_reg_fpr(instr.rt()).to_bits() as u32;
-                self.write_word(interconnect, virt_addr, mem);
+                let mem = self.read_reg_fpr(instr.rt()).to_bits();
+
+                self.write_doubleword(interconnect, virt_addr, mem)
             }
 
             Ld => {
@@ -519,8 +594,8 @@ impl Cpu {
 
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
-
                 let mem = self.read_doubleword(interconnect, virt_addr);
+
                 self.write_reg_gpr(instr.rt(), mem);
             }
 
@@ -530,8 +605,8 @@ impl Cpu {
                 let sign_extended_offset = instr.offset_sign_extended();
                 let virt_addr = self.read_reg_gpr(base).wrapping_add(sign_extended_offset);
                 let mem = self.read_reg_gpr(instr.rt());
-                self.write_word(interconnect, virt_addr, (mem >> 32) as u32);
-                self.write_word(interconnect, virt_addr + 4, (mem & 0xffffffff) as u32);
+
+                self.write_doubleword(interconnect, virt_addr, mem)
             }
         }
     }
@@ -566,6 +641,81 @@ impl Cpu {
             _ => value,
         };
         self.write_reg_gpr(instr.rd() as usize, value);
+    }
+
+    fn cp1_double_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f64, f64) -> f64,
+    {
+        let fs = self.read_reg_fpr(instr.fs());
+        let ft = self.read_reg_fpr(instr.ft());
+        self.write_reg_fpr(instr.fd(), f(fs, ft));
+    }
+    fn cp1_single_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f32, f32) -> f32,
+    {
+        let fs = self.read_reg_fpr_single(instr.fs());
+        let ft = self.read_reg_fpr_single(instr.ft());
+        self.write_reg_fpr_single(instr.fd(), f(fs, ft));
+    }
+    fn cp1_double_to_doubleword_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f64, f64) -> u64,
+    {
+        let fs = self.read_reg_fpr(instr.fs());
+        let ft = self.read_reg_fpr(instr.ft());
+        self.write_reg_fpr(instr.fd(), f64::from_bits(f(fs, ft)));
+    }
+    fn cp1_single_to_doubleword_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f32, f32) -> u64,
+    {
+        let fs = self.read_reg_fpr_single(instr.fs());
+        let ft = self.read_reg_fpr_single(instr.ft());
+        self.write_reg_fpr(instr.fd(), f64::from_bits(f(fs, ft)));
+    }
+    fn cp1_double_to_word_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f64, f64) -> u32,
+    {
+        let fs = self.read_reg_fpr(instr.fs());
+        let ft = self.read_reg_fpr(instr.ft());
+        self.write_reg_fpr_single(instr.fd(), f32::from_bits(f(fs, ft)));
+    }
+    fn cp1_single_to_word_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f32, f32) -> u32,
+    {
+        let fs = self.read_reg_fpr_single(instr.fs());
+        let ft = self.read_reg_fpr_single(instr.ft());
+        self.write_reg_fpr_single(instr.fd(), f32::from_bits(f(fs, ft)));
+    }
+    fn cp1_double_cmp_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f64, f64) -> bool,
+    {
+        let fs = self.read_reg_fpr(instr.fs());
+        let ft = self.read_reg_fpr(instr.ft());
+        let c = f(fs, ft);
+        if c {
+            self.reg_fcr31 = self.reg_fcr31 | 0x00400000;
+        } else {
+            self.reg_fcr31 = self.reg_fcr31 & 0xFFBFFFFF;
+        }
+    }
+    fn cp1_single_cmp_instr<F>(&mut self, instr: Instruction, f: F)
+    where
+        F: FnOnce(f32, f32) -> bool,
+    {
+        let fs = self.read_reg_fpr_single(instr.fs());
+        let ft = self.read_reg_fpr_single(instr.ft());
+        let c = f(fs, ft);
+        if c {
+            self.reg_fcr31 = self.reg_fcr31 | 0x00400000;
+        } else {
+            self.reg_fcr31 = self.reg_fcr31 & 0xFFBFFFFF;
+        }
     }
 
     fn resolve_offset(&self, instr: Instruction) -> u64 {
@@ -631,9 +781,14 @@ impl Cpu {
         interconnect.read_byte(phys_addr as u32)
     }
 
-    fn write_word(&mut self, interconnect: &mut Interconnect, virt_addr: u64, value: u32) {
+    fn write_word(&self, interconnect: &mut Interconnect, virt_addr: u64, value: u32) {
         let phys_addr = self.virt_addr_to_phys_addr(virt_addr);
         interconnect.write_word(phys_addr as u32, value);
+    }
+
+    fn write_doubleword(&self, interconnect: &mut Interconnect, virt_addr: u64, value: u64) {
+        self.write_word(interconnect, virt_addr + 0, (value >> 32) as u32);
+        self.write_word(interconnect, virt_addr + 4, value as u32);
     }
 
     fn write_byte(&mut self, interconnect: &mut Interconnect, virt_addr: u64, value: u8) {
@@ -671,9 +826,15 @@ impl Cpu {
     fn write_reg_fpr(&mut self, index: usize, value: f64) {
         self.reg_fpr[index] = value;
     }
+    fn write_reg_fpr_single(&mut self, index: usize, value: f32) {
+        self.reg_fpr[index] = f64::from_bits(value.to_bits() as u64);
+    }
 
     fn read_reg_fpr(&self, index: usize) -> f64 {
         self.reg_fpr[index]
+    }
+    fn read_reg_fpr_single(&self, index: usize) -> f32 {
+        f32::from_bits(self.reg_fpr[index].to_bits() as u32)
     }
 }
 

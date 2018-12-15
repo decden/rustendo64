@@ -1,5 +1,5 @@
-use super::{Cpu, Rsp, Interconnect};
 use super::sinks::{Sink, VideoFrame};
+use super::{Cpu, Interconnect, Rsp};
 
 #[derive(Debug)]
 pub struct N64 {

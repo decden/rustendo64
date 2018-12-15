@@ -51,11 +51,14 @@ enum_from_primitive! {
 
         Cache =   0b101111,
 
+        Lwc1 =    0b110001,
         Ldc1 =    0b110101,
 
-        Swc1 =    0b111001,
-
         Ld =      0b110111,
+
+        Swc1 =    0b111001,
+        Sdc1 =    0b111101,
+
         Sd =      0b111111,
     }
 }
@@ -158,8 +161,40 @@ enum_from_primitive! {
         Sub =    0b000001,
         Mul =    0b000010,
         Div =    0b000011,
+        Sqrt =   0b000100,
+        Abs =    0b000101,
         Mov =    0b000110,
+        Neg =    0b000111,
+        RoundL = 0b001000,
+        TruncL = 0b001001,
+        CeilL =  0b001010,
+        FloorL = 0b001011,
+        RoundW = 0b001100,
+        TruncW = 0b001101,
+        CeilW =  0b001110,
+        FloorW = 0b001111,
 
-        Cle =    0b111110, // 17.6 FPU Instruction Opcode Bit Encoding
+        CvtS =   0b100000,
+        CvtD =   0b100001,
+        CvtW =   0b100100,
+        CvtL =   0b100101,
+
+        // 17.6 FPU Instruction Opcode Bit Encoding
+        Cf =     0b110000,
+        Cun =    0b110001,
+        Ceq =    0b110010,
+        Cueq =   0b110011,
+        Colt =   0b110100,
+        Cult =   0b110101,
+        Cole =   0b110110,
+        Cule =   0b110111,
+        Csf =    0b111000,
+        Cngle =  0b111001,
+        Cseq =   0b111010,
+        Cngl =   0b111011,
+        Clt =    0b111100,
+        Cnge =   0b111101,
+        Cle =    0b111110,
+        Cngt =   0b111111,
     }
 }

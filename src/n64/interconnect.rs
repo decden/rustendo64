@@ -1,12 +1,11 @@
 use byteorder::{BigEndian, ByteOrder};
 
-use super::{AudioInterface, PeripheralInterface, Pif, Rdp, RspRegs, MipsInterface,
-            SerialInterface, RdramInterface, VideoInterface};
-use super::mem_map::{self, Addr};
-use super::mem_map::RDRAM_LENGTH;
 use super::dma::DMARequest;
+use super::mem_map::RDRAM_LENGTH;
+use super::mem_map::{self, Addr};
 use super::sinks::{Sink, VideoFrame};
-use super::video_interface::{FramebufferFormat};
+use super::video_interface::FramebufferFormat;
+use super::{AudioInterface, MipsInterface, PeripheralInterface, Pif, Rdp, RdramInterface, RspRegs, SerialInterface, VideoInterface};
 
 use std::fmt;
 
@@ -27,8 +26,6 @@ pub struct Interconnect {
     si: SerialInterface,
 
     cart_rom: Box<[u8]>,
-
-    steps_to_next_frame: u32,
 }
 
 impl Interconnect {
@@ -50,16 +47,18 @@ impl Interconnect {
             si: SerialInterface::default(),
 
             cart_rom: cart_rom,
-
-            steps_to_next_frame: 100000,
         };
 
         interconnect.pif.init_cic_seed(&*interconnect.cart_rom);
         interconnect
     }
 
-    pub fn pif(&self) -> &Pif { &self.pif }
-    pub fn rsp(&mut self) -> &mut RspRegs { &mut self.rsp }
+    pub fn pif(&self) -> &Pif {
+        &self.pif
+    }
+    pub fn rsp(&mut self) -> &mut RspRegs {
+        &mut self.rsp
+    }
 
     pub fn read_word_debug(&self, addr: u32) -> Option<u32> {
         let mapped_address = mem_map::map_addr(addr);
@@ -75,7 +74,7 @@ impl Interconnect {
             _ => {
                 println!("Could not debug address {:?}", mapped_address);
                 None
-            },
+            }
         }
     }
 
@@ -229,9 +228,8 @@ impl Interconnect {
         };
     }
 
-    fn do_dma(&mut self, dma: DMARequest)
-    {
-        if (dma.length != 0) {
+    fn do_dma(&mut self, dma: DMARequest) {
+        if dma.length != 0 {
             println!("DMA {:08X} {:08X} {}", dma.from, dma.to, dma.length);
         }
 
@@ -248,29 +246,31 @@ impl Interconnect {
         let dma = self.rsp.get_dma_read_chunk();
         self.do_dma(dma);
 
+        let draw_frame = self.vi.step();
 
-        // Every once in a white, do scan out the framebuffer. Note that this counter is totaly arbitrary right now...
-        self.steps_to_next_frame -= 1;
-        if self.steps_to_next_frame == 0 {
-            self.steps_to_next_frame = 100000;
+        if draw_frame {
             if let Some(fb) = self.vi.framebuffer_description() {
                 let size = (fb.width * fb.height) as usize;
                 let mut argb_data: Box<[u32]> = vec![0; size].into_boxed_slice();
 
                 match fb.format {
-                    FramebufferFormat::RGBA32Bit => for i in 0..size {
-                        argb_data[i] = self.read_word(fb.origin + i as u32 * 4) >> 8;
-                    },
-                    FramebufferFormat::RGBA16Bit => for i in 0..(size / 2) {
-                        let pixel = self.read_word(fb.origin + i as u32 * 4);
-                        argb_data[i*2+0] = ((pixel >> 26) & 0b11111) << (3 + 16) |
-                                           ((pixel >> 21) & 0b11111) << (3 +  8) |
-                                           ((pixel >> 16) & 0b11111) << (3 +  0);
-                        argb_data[i*2+1] = ((pixel >> 10) & 0b11111) << (3 + 16) |
-                                           ((pixel >>  5) & 0b11111) << (3 +  8) |
-                                           ((pixel >>  0) & 0b11111) << (3 +  0);
-                    },
-                    _ => {},
+                    FramebufferFormat::RGBA32Bit => {
+                        for i in 0..size {
+                            argb_data[i] = self.read_word(fb.origin + i as u32 * 4) >> 8;
+                        }
+                    }
+                    FramebufferFormat::RGBA16Bit => {
+                        for i in 0..(size / 2) {
+                            let pixel = self.read_word(fb.origin + i as u32 * 4);
+                            argb_data[i * 2 + 0] = ((pixel >> 26) & 0b11111) << (3 + 16)
+                                | ((pixel >> 21) & 0b11111) << (3 + 8)
+                                | ((pixel >> 16) & 0b11111) << (3 + 0);
+                            argb_data[i * 2 + 1] = ((pixel >> 10) & 0b11111) << (3 + 16)
+                                | ((pixel >> 5) & 0b11111) << (3 + 8)
+                                | ((pixel >> 0) & 0b11111) << (3 + 0);
+                        }
+                    }
+                    _ => {}
                 };
 
                 frame_sink.append(VideoFrame {
