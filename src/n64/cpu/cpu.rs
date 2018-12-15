@@ -291,68 +291,150 @@ impl Cpu {
             }
 
             Cop1 => {
-                if instr.fmt() == 0b01000 {
-                    if instr.ft() == 0b00010 {
-                        let branch = (self.reg_fcr31 & 0x00400000) == 0;
-                        self.branch_likely(instr, |_, _| branch);
-                    } else if instr.ft() == 0b00000 {
-                        let branch = (self.reg_fcr31 & 0x00400000) == 0;
-                        self.branch(instr, WriteLink::No, |_, _| branch);
-                    }
-                } else {
-                    match (instr.cop1_op(), instr.fmt()) {
-                        (Cop1Opcode::Add, 16) => self.cp1_single_instr(instr, |fs, ft| fs + ft),
-                        (Cop1Opcode::Add, 17) => self.cp1_double_instr(instr, |fs, ft| fs + ft),
-                        (Cop1Opcode::Sub, 16) => self.cp1_single_instr(instr, |fs, ft| fs - ft),
-                        (Cop1Opcode::Sub, 17) => self.cp1_double_instr(instr, |fs, ft| fs - ft),
-                        (Cop1Opcode::Mul, 16) => self.cp1_single_instr(instr, |fs, ft| fs * ft),
-                        (Cop1Opcode::Mul, 17) => self.cp1_double_instr(instr, |fs, ft| fs * ft),
-                        (Cop1Opcode::Div, 16) => self.cp1_single_instr(instr, |fs, ft| fs / ft),
-                        (Cop1Opcode::Div, 17) => self.cp1_double_instr(instr, |fs, ft| fs / ft),
-                        (Cop1Opcode::Sqrt, 16) => self.cp1_single_instr(instr, |fs, _| fs.sqrt()),
-                        (Cop1Opcode::Sqrt, 17) => self.cp1_double_instr(instr, |fs, _| fs.sqrt()),
-                        (Cop1Opcode::Abs, 16) => self.cp1_single_instr(instr, |fs, _| fs.abs()),
-                        (Cop1Opcode::Abs, 17) => self.cp1_double_instr(instr, |fs, _| fs.abs()),
-                        (Cop1Opcode::Mov, 16) => self.cp1_single_instr(instr, |fs, _| fs),
-                        (Cop1Opcode::Mov, 17) => self.cp1_double_instr(instr, |fs, _| fs),
-                        (Cop1Opcode::Neg, 16) => self.cp1_single_instr(instr, |fs, _| -fs),
-                        (Cop1Opcode::Neg, 17) => self.cp1_double_instr(instr, |fs, _| -fs),
-                        (Cop1Opcode::RoundL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.round() as i64 as u64),
-                        (Cop1Opcode::RoundL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.round() as i64 as u64),
-                        (Cop1Opcode::TruncL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
-                        (Cop1Opcode::TruncL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
-                        (Cop1Opcode::CeilL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.ceil() as i64 as u64),
-                        (Cop1Opcode::CeilL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.ceil() as i64 as u64),
-                        (Cop1Opcode::FloorL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.floor() as i64 as u64),
-                        (Cop1Opcode::FloorL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.floor() as i64 as u64),
-                        (Cop1Opcode::RoundW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| fs.round() as i32 as u32),
-                        (Cop1Opcode::RoundW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| fs.round() as i32 as u32),
-                        (Cop1Opcode::TruncW, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
-                        (Cop1Opcode::TruncW, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
-                        (Cop1Opcode::CeilW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| fs.ceil() as i32 as u32),
-                        (Cop1Opcode::CeilW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| fs.ceil() as i32 as u32),
-                        (Cop1Opcode::FloorW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| fs.floor() as i32 as u32),
-                        (Cop1Opcode::FloorW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| fs.floor() as i32 as u32),
-                        (Cop1Opcode::CvtS, 17) => self.cp1_double_to_word_instr(instr, |fs, _| (fs as f32).to_bits()),
-                        (Cop1Opcode::CvtS, 20) => self.cp1_single_to_word_instr(instr, |fs, _| (fs.to_bits() as i32 as f32).to_bits()),
-                        (Cop1Opcode::CvtS, 21) => self.cp1_double_to_word_instr(instr, |fs, _| (fs.to_bits() as i64 as f32).to_bits()),
-                        (Cop1Opcode::CvtD, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs as f64).to_bits()),
-                        (Cop1Opcode::CvtD, 20) => {
-                            self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs.to_bits() as i32 as f64).to_bits())
+                match instr.fmt() {
+                    0b01000 => {
+                        // BR
+                        let c_flag_set = (self.reg_fcr31 & 0x00400000) != 0;
+                        if instr.ft() == 0b00010 {
+                            self.branch_likely(instr, |_, _| !c_flag_set);
+                        } else if instr.ft() == 0b00000 {
+                            self.branch(instr, WriteLink::No, |_, _| !c_flag_set);
+                        } else if instr.ft() == 0b00001 {
+                            self.branch(instr, WriteLink::No, |_, _| c_flag_set);
+                        } else if instr.ft() == 0b00011 {
+                            self.branch_likely(instr, |_, _| c_flag_set);
+                        } else {
+                            panic!("Unknown FPU BC Instruction {:8X}", instr.0);
                         }
-                        (Cop1Opcode::CvtD, 21) => {
-                            self.cp1_double_to_doubleword_instr(instr, |fs, _| (fs.to_bits() as i64 as f64).to_bits())
-                        }
-                        (Cop1Opcode::CvtW, 16) => self.cp1_single_to_word_instr(instr, |fs, _| (fs as i32 as u32)),
-                        (Cop1Opcode::CvtW, 17) => self.cp1_double_to_word_instr(instr, |fs, _| (fs as i32 as u32)),
-                        (Cop1Opcode::CvtL, 16) => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs as i64 as u64)),
-                        (Cop1Opcode::CvtL, 17) => self.cp1_double_to_doubleword_instr(instr, |fs, _| (fs as i64 as u64)),
-                        (Cop1Opcode::Ceq, 16) => self.cp1_single_cmp_instr(instr, |fs, ft| fs == ft),
-                        (Cop1Opcode::Ceq, 17) => self.cp1_double_cmp_instr(instr, |fs, ft| fs == ft),
-                        (Cop1Opcode::Cle, 16) => self.cp1_single_cmp_instr(instr, |fs, ft| fs <= ft),
-                        (Cop1Opcode::Cle, 17) => self.cp1_double_cmp_instr(instr, |fs, ft| fs <= ft),
-                        _ => panic!("Unsupported {:?} {:?} {} {:08X}", instr, instr.cop1_op(), instr.fmt(), instr.0),
                     }
+                    0b00010 => {
+                        // CFC1
+                        let val = match instr.fs() {
+                            0 => self.reg_fcr0,
+                            31 => self.reg_fcr31,
+                            _ => panic!("CFC1 can only access FCR0 or FCR31"),
+                        } as u64;
+                        self.write_reg_gpr(instr.rt(), val)
+                    }
+                    0b00100 => {
+                        // MTC1
+                        let reg = self.read_reg_gpr(instr.rt());
+                        self.write_reg_fpr(instr.rt(), f64::from_bits(reg));
+                    }
+                    0b00110 => {
+                        // CTC1
+                        let val = self.read_reg_gpr(instr.rt());
+                        match instr.fs() {
+                            0 => {
+                                println!("WARNING: Setting FCR0 to {:08X}", val);
+                                self.reg_fcr0 = val as u32;
+                            }
+                            31 => {
+                                println!("WARNING: Setting FCR31 to {:08X}", val);
+                                self.reg_fcr31 = val as u32;
+                            }
+                            _ => panic!("CTC1 can only access FCR0 or FCR31"),
+                        }
+                    }
+                    0b10000 => {
+                        // f32
+                        match instr.cop1_op() {
+                            Cop1Opcode::Add => self.cp1_single_instr(instr, |fs, ft| fs + ft),
+                            Cop1Opcode::Sub => self.cp1_single_instr(instr, |fs, ft| fs - ft),
+                            Cop1Opcode::Mul => self.cp1_single_instr(instr, |fs, ft| fs * ft),
+                            Cop1Opcode::Div => self.cp1_single_instr(instr, |fs, ft| fs / ft),
+                            Cop1Opcode::Sqrt => self.cp1_single_instr(instr, |fs, _| fs.sqrt()),
+                            Cop1Opcode::Abs => self.cp1_single_instr(instr, |fs, _| fs.abs()),
+                            Cop1Opcode::Mov => self.cp1_single_instr(instr, |fs, _| fs),
+                            Cop1Opcode::Neg => self.cp1_single_instr(instr, |fs, _| -fs),
+                            Cop1Opcode::RoundL => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.round() as i64 as u64),
+                            Cop1Opcode::TruncL => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                            Cop1Opcode::CeilL => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.ceil() as i64 as u64),
+                            Cop1Opcode::FloorL => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.floor() as i64 as u64),
+                            Cop1Opcode::RoundW => self.cp1_single_to_word_instr(instr, |fs, _| fs.round() as i32 as u32),
+                            Cop1Opcode::TruncW => self.cp1_single_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                            Cop1Opcode::CeilW => self.cp1_single_to_word_instr(instr, |fs, _| fs.ceil() as i32 as u32),
+                            Cop1Opcode::FloorW => self.cp1_single_to_word_instr(instr, |fs, _| fs.floor() as i32 as u32),
+                            Cop1Opcode::CvtD => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs as f64).to_bits()),
+                            Cop1Opcode::CvtW => self.cp1_single_to_word_instr(instr, |fs, _| (fs as i32 as u32)),
+                            Cop1Opcode::CvtL => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs as i64 as u64)),
+                            Cop1Opcode::Cf => self.cp1_single_cmp_instr(instr, |_, _| false), // TODO: Not sure what this does
+                            Cop1Opcode::Cun => self.cp1_single_cmp_instr(instr, |_, _| false), // TODO: Not sure what this does
+                            Cop1Opcode::Ceq => self.cp1_single_cmp_instr(instr, |fs, ft| fs == ft),
+                            Cop1Opcode::Cueq => self.cp1_single_cmp_instr(instr, |fs, ft| fs == ft), // TODO: Not sure what this does
+                            Cop1Opcode::Colt => self.cp1_single_cmp_instr(instr, |fs, ft| fs < ft),  // TODO: Not sure what this does
+                            Cop1Opcode::Cult => self.cp1_single_cmp_instr(instr, |fs, ft| fs < ft),  // TODO: Not sure what this does
+                            Cop1Opcode::Cole => self.cp1_single_cmp_instr(instr, |fs, ft| fs <= ft), // TODO: Not sure what this does
+                            Cop1Opcode::Cule => self.cp1_single_cmp_instr(instr, |fs, ft| fs <= ft), // TODO: Not sure what this does
+                            Cop1Opcode::Csf => self.cp1_single_cmp_instr(instr, |_, _| false),       // TODO: Not sure what this does
+                            Cop1Opcode::Cngle => self.cp1_single_cmp_instr(instr, |fs, ft| !(fs >= ft) && !(fs <= ft)), // TODO: Not sure what this does
+                            Cop1Opcode::Cseq => self.cp1_single_cmp_instr(instr, |fs, ft| fs == ft), // TODO: Not sure what this does
+                            Cop1Opcode::Cngl => self.cp1_single_cmp_instr(instr, |fs, ft| !(fs > ft) && !(fs < ft)), // TODO: Not sure what this does
+                            Cop1Opcode::Clt => self.cp1_single_cmp_instr(instr, |fs, ft| fs < ft),
+                            Cop1Opcode::Cnge => self.cp1_single_cmp_instr(instr, |fs, ft| !(fs >= ft)), // TODO: Not sure what this does
+                            Cop1Opcode::Cle => self.cp1_single_cmp_instr(instr, |fs, ft| fs <= ft),
+                            Cop1Opcode::Cngt => self.cp1_single_cmp_instr(instr, |fs, ft| !(fs > ft)), // TODO: Not sure what this does
+                            _ => panic!("Unknown FPU f32 instruction {:08X}", instr.0),
+                        }
+                    }
+                    0b10001 => {
+                        // f64
+                        match instr.cop1_op() {
+                            Cop1Opcode::Add => self.cp1_double_instr(instr, |fs, ft| fs + ft),
+                            Cop1Opcode::Sub => self.cp1_double_instr(instr, |fs, ft| fs - ft),
+                            Cop1Opcode::Mul => self.cp1_double_instr(instr, |fs, ft| fs * ft),
+                            Cop1Opcode::Div => self.cp1_double_instr(instr, |fs, ft| fs / ft),
+                            Cop1Opcode::Sqrt => self.cp1_double_instr(instr, |fs, _| fs.sqrt()),
+                            Cop1Opcode::Abs => self.cp1_double_instr(instr, |fs, _| fs.abs()),
+                            Cop1Opcode::Mov => self.cp1_double_instr(instr, |fs, _| fs),
+                            Cop1Opcode::Neg => self.cp1_double_instr(instr, |fs, _| -fs),
+                            Cop1Opcode::RoundL => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.round() as i64 as u64),
+                            Cop1Opcode::TruncL => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                            Cop1Opcode::CeilL => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.ceil() as i64 as u64),
+                            Cop1Opcode::FloorL => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.floor() as i64 as u64),
+                            Cop1Opcode::RoundW => self.cp1_double_to_word_instr(instr, |fs, _| fs.round() as i32 as u32),
+                            Cop1Opcode::TruncW => self.cp1_double_to_doubleword_instr(instr, |fs, _| fs.trunc() as i64 as u64),
+                            Cop1Opcode::CeilW => self.cp1_double_to_word_instr(instr, |fs, _| fs.ceil() as i32 as u32),
+                            Cop1Opcode::FloorW => self.cp1_double_to_word_instr(instr, |fs, _| fs.floor() as i32 as u32),
+                            Cop1Opcode::CvtS => self.cp1_double_to_word_instr(instr, |fs, _| (fs as f32).to_bits()),
+                            Cop1Opcode::CvtW => self.cp1_double_to_word_instr(instr, |fs, _| (fs as i32 as u32)),
+                            Cop1Opcode::CvtL => self.cp1_double_to_doubleword_instr(instr, |fs, _| (fs as i64 as u64)),
+                            Cop1Opcode::Cf => self.cp1_double_cmp_instr(instr, |_, _| false), // TODO: Not sure what this does
+                            Cop1Opcode::Cun => self.cp1_double_cmp_instr(instr, |_, _| false), // TODO: Not sure what this does
+                            Cop1Opcode::Ceq => self.cp1_double_cmp_instr(instr, |fs, ft| fs == ft),
+                            Cop1Opcode::Cueq => self.cp1_double_cmp_instr(instr, |fs, ft| fs == ft), // TODO: Not sure what this does
+                            Cop1Opcode::Colt => self.cp1_double_cmp_instr(instr, |fs, ft| fs < ft),  // TODO: Not sure what this does
+                            Cop1Opcode::Cult => self.cp1_double_cmp_instr(instr, |fs, ft| fs < ft),  // TODO: Not sure what this does
+                            Cop1Opcode::Cole => self.cp1_double_cmp_instr(instr, |fs, ft| fs <= ft), // TODO: Not sure what this does
+                            Cop1Opcode::Cule => self.cp1_double_cmp_instr(instr, |fs, ft| fs <= ft), // TODO: Not sure what this does
+                            Cop1Opcode::Csf => self.cp1_double_cmp_instr(instr, |_, _| false),       // TODO: Not sure what this does
+                            Cop1Opcode::Cngle => self.cp1_double_cmp_instr(instr, |fs, ft| !(fs >= ft) && !(fs <= ft)), // TODO: Not sure what this does
+                            Cop1Opcode::Cseq => self.cp1_double_cmp_instr(instr, |fs, ft| fs == ft), // TODO: Not sure what this does
+                            Cop1Opcode::Cngl => self.cp1_double_cmp_instr(instr, |fs, ft| !(fs > ft) && !(fs < ft)), // TODO: Not sure what this does
+                            Cop1Opcode::Clt => self.cp1_double_cmp_instr(instr, |fs, ft| fs < ft),
+                            Cop1Opcode::Cnge => self.cp1_double_cmp_instr(instr, |fs, ft| !(fs >= ft)), // TODO: Not sure what this does
+                            Cop1Opcode::Cle => self.cp1_double_cmp_instr(instr, |fs, ft| fs <= ft),
+                            Cop1Opcode::Cngt => self.cp1_double_cmp_instr(instr, |fs, ft| !(fs > ft)), // TODO: Not sure what this does
+                            _ => panic!("Unknown FPU f64 instruction {:08X}", instr.0),
+                        }
+                    }
+                    0b10100 => {
+                        // i32
+                        match instr.cop1_op() {
+                            Cop1Opcode::CvtS => self.cp1_single_to_word_instr(instr, |fs, _| (fs.to_bits() as i32 as f32).to_bits()),
+                            Cop1Opcode::CvtD => self.cp1_single_to_doubleword_instr(instr, |fs, _| (fs.to_bits() as i32 as f64).to_bits()),
+                            _ => panic!("Unknown FPU fixedpoint 32 instruction {:08X}", instr.0),
+                        }
+                    }
+                    0b10101 => {
+                        // i64
+                        match instr.cop1_op() {
+                            Cop1Opcode::CvtS => self.cp1_double_to_word_instr(instr, |fs, _| (fs.to_bits() as i64 as f32).to_bits()),
+                            Cop1Opcode::CvtD => self.cp1_double_to_doubleword_instr(instr, |fs, _| (fs.to_bits() as i64 as f64).to_bits()),
+                            _ => panic!("Unknown FPU fixedpoint 64 instruction {:08X}", instr.0),
+                        }
+                    }
+                    _ => panic!("Unknown FPU instruction {:08X}", instr.0),
                 }
             }
 
